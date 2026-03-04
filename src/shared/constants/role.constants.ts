@@ -1,5 +1,6 @@
 export const ROLES = {
+  READER: 'READER',
+  WRITER: 'WRITER',
   ADMIN: 'ADMIN',
-  USER: 'USER',
-}
+} as const
 export type RoleType = (typeof ROLES)[keyof typeof ROLES]

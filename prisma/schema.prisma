@@ -1,14 +1,451 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// Novel/Manga Platform Database Schema
+// Author: Antigravity AI
+// Database: PostgreSQL
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
+  
+
 }
 
 datasource db {
   provider = "postgresql"
+
+}
+
+
+// ============================================
+// USER MANAGEMENT
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  username      String    @unique
+  passwordHash  String?
+  displayName   String?
+  avatar        String?
+  bio           String?
+  role          Role      @default(READER)
+  
+  // OAuth
+  googleId      String?   @unique
+  emailVerified DateTime?
+  
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+  
+  // Relations
+  stories       Story[]
+  chapters      Chapter[]
+  readingHistory ReadingHistory[]
+  bookmarks     Bookmark[]
+  comments      Comment[]
+  reviews       Review[]
+  wallet        Wallet?
+  donationsSent     Donation[] @relation("DonationFrom")
+  donationsReceived Donation[] @relation("DonationTo")
+  notifications Notification[]
+  following     Follow[]  @relation("Following")
+  followers     Follow[]  @relation("Followers")
+  
+  @@index([email])
+  @@index([username])
+}
+
+enum Role {
+  READER
+  WRITER
+  ADMIN
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+  
+  follower    User     @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+  
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+// ============================================
+// CONTENT MANAGEMENT
+// ============================================
+
+model Story {
+  id            String    @id @default(cuid())
+  title         String
+  slug          String    @unique
+  description   String    @db.Text
+  coverImage    String?
+  type          StoryType @default(NOVEL)
+  status        StoryStatus @default(ONGOING)
+  
+  // Author
+  authorId      String
+  author        User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  // Stats
+  viewCount     Int       @default(0)
+  totalChapters Int       @default(0)
+  rating        Float     @default(0)
+  totalRatings  Int       @default(0)
+  
+  // Publishing
+  isPublished   Boolean   @default(false)
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  chapters      Chapter[]
+  genres        StoryGenre[]
+  tags          StoryTag[]
+  readingHistory ReadingHistory[]
+  bookmarks     Bookmark[]
+  comments      Comment[]
+  reviews       Review[]
+  analytics     StoryAnalytics[]
+  
+  @@index([authorId])
+  @@index([slug])
+  @@index([status])
+  @@index([isPublished])
+  @@index([createdAt])
+}
+
+enum StoryType {
+  NOVEL
+  MANGA
+  COMIC
+  LIGHTNOVEL
+}
+
+enum StoryStatus {
+  ONGOING
+  COMPLETED
+  HIATUS
+  DROPPED
+}
+
+model Chapter {
+  id            String    @id @default(cuid())
+  title         String
+  slug          String
+  chapterNumber Int
+  content       Json    
+  
+  // Story relation
+  storyId       String
+  story         Story     @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  
+  // Author (có thể khác author của story)
+  authorId      String
+  author        User      @relation(fields: [authorId], references: [id])
+  
+  // Publishing
+  isPublished   Boolean   @default(false)
+  publishedAt   DateTime?
+  wordCount     Int       @default(0)
+  viewCount     Int       @default(0)
+  
+  // Premium content
+  isPremium     Boolean   @default(false)
+  price         Int       @default(0)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  readingHistory ReadingHistory[]
+  
+  @@unique([storyId, chapterNumber])
+  @@index([storyId])
+  @@index([isPublished])
+  @@index([slug])
+}
+
+model Genre {
+  id        String       @id @default(cuid())
+  name      String       @unique
+  slug      String       @unique
+  stories   StoryGenre[]
+  
+  @@index([slug])
+}
+
+model Tag {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  slug      String     @unique
+  stories   StoryTag[]
+  
+  @@index([slug])
+}
+
+model StoryGenre {
+  id        String  @id @default(cuid())
+  storyId   String
+  genreId   String
+  
+  story     Story   @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  genre     Genre   @relation(fields: [genreId], references: [id], onDelete: Cascade)
+  
+  @@unique([storyId, genreId])
+  @@index([storyId])
+  @@index([genreId])
+}
+
+model StoryTag {
+  id        String  @id @default(cuid())
+  storyId   String
+  tagId     String
+  
+  story     Story   @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  @@unique([storyId, tagId])
+  @@index([storyId])
+  @@index([tagId])
+}
+
+// ============================================
+// READING HISTORY & ENGAGEMENT
+// ============================================
+
+model ReadingHistory {
+  id          String   @id @default(cuid())
+  userId      String
+  storyId     String
+  chapterId   String
+  
+  // Reading progress
+  progress    Float    @default(0)
+  lastPosition Int     @default(0)
+  
+  readAt      DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story       Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  chapter     Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, storyId, chapterId])
+  @@index([userId])
+  @@index([storyId])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  storyId   String
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story     Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, storyId])
+  @@index([userId])
+  @@index([storyId])
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  content   String    @db.Text
+  userId    String
+  storyId   String
+  
+  // Reply system
+  parentId  String?
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story     Story     @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([storyId])
+  @@index([parentId])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int
+  content   String?  @db.Text
+  userId    String
+  storyId   String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story     Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, storyId])
+  @@index([userId])
+  @@index([storyId])
+}
+
+// ============================================
+// VIRTUAL WALLET & DONATIONS
+// ============================================
+
+model Wallet {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  balance       Int       @default(0)
+  totalEarned   Int       @default(0)
+  totalSpent    Int       @default(0)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+  
+  @@index([userId])
+}
+
+model Transaction {
+  id          String      @id @default(cuid())
+  walletId    String
+  type        TransactionType
+  amount      Int
+  balance     Int
+  description String?
+  
+  // Payment gateway info
+  paymentId   String?
+  paymentMethod String?
+  status      TransactionStatus @default(PENDING)
+  
+  createdAt   DateTime    @default(now())
+  
+  wallet      Wallet      @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  
+  @@index([walletId])
+  @@index([createdAt])
+  @@index([status])
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  DONATE
+  UNLOCK
+  REFUND
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model Donation {
+  id          String   @id @default(cuid())
+  amount      Int
+  message     String?  @db.Text
+  
+  // From reader to writer
+  fromUserId  String
+  toUserId    String
+  storyId     String?
+  
+  isAnonymous Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  
+  fromUser    User     @relation("DonationFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser      User     @relation("DonationTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([createdAt])
+}
+
+// ============================================
+// ANALYTICS
+// ============================================
+
+model StoryAnalytics {
+  id              String   @id @default(cuid())
+  storyId         String
+  date            DateTime @db.Date
+  
+  // Daily stats
+  views           Int      @default(0)
+  uniqueReaders   Int      @default(0)
+  newFollowers    Int      @default(0)
+  comments        Int      @default(0)
+  donations       Int      @default(0)
+  totalDonated    Int      @default(0)
+  
+  createdAt       DateTime @default(now())
+  
+  story           Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  
+  @@unique([storyId, date])
+  @@index([storyId])
+  @@index([date])
+}
+
+model UserAnalytics {
+  id              String   @id @default(cuid())
+  userId          String
+  date            DateTime @db.Date
+  
+  // Writer stats
+  totalViews      Int      @default(0)
+  totalReaders    Int      @default(0)
+  newFollowers    Int      @default(0)
+  totalEarnings   Int      @default(0)
+  
+  createdAt       DateTime @default(now())
+  
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String   @db.Text
+  link      String?
+  
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+enum NotificationType {
+  NEW_CHAPTER
+  NEW_COMMENT
+  NEW_REVIEW
+  NEW_FOLLOWER
+  DONATION_RECEIVED
+  SYSTEM
+  ADMIN
 }

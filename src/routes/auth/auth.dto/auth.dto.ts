@@ -1,32 +1,53 @@
 import z4 from 'zod/v4'
+import { createZodDto } from 'nestjs-zod'
 
+// ==================== Register ====================
+export const RegisterBodySchema = z4
+  .object({
+    email: z4.email('Email không hợp lệ'),
+    username: z4.string().min(3, 'Username tối thiểu 3 ký tự').max(30, 'Username tối đa 30 ký tự'),
+    password: z4.string().min(6, 'Mật khẩu tối thiểu 6 ký tự').max(50, 'Mật khẩu tối đa 50 ký tự'),
+    confirmPassword: z4.string(),
+    displayName: z4.string().optional(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Mật khẩu xác nhận không khớp',
+    path: ['confirmPassword'],
+  })
+
+export type RegisterBodyType = z4.infer<typeof RegisterBodySchema>
+
+export class RegisterBodyDTO extends createZodDto(RegisterBodySchema) {}
+
+// ==================== Login ====================
 export const LoginBodySchema = z4.object({
-  email: z4.email('Invalid email address'),
-  password: z4.string().min(6, 'Mật khẩu phải >= 6 ký tự').max(20, 'Mật khẩu tối đa 20 ký tự'),
+  email: z4.email('Email không hợp lệ'),
+  password: z4.string().min(1, 'Mật khẩu không được để trống'),
 })
-export type LoginBodyDTO = z4.infer<typeof LoginBodySchema>
-export class LoginResDTO {
+
+export type LoginBodyType = z4.infer<typeof LoginBodySchema>
+
+export class LoginBodyDTO extends createZodDto(LoginBodySchema) {}
+
+// ==================== Response DTOs ====================
+export class AuthTokensResDTO {
   accessToken: string
   refreshToken: string
-  constructor(partial: Partial<LoginResDTO>) {
+  constructor(partial: Partial<AuthTokensResDTO>) {
     Object.assign(this, partial)
   }
 }
-export const RegisterBody = LoginBodySchema.extend({
-  name: z4.string({ message: 'Tên phải là chuỗi' }),
-  confirmPassword: z4.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: 'Mật khẩu xác nhận không khớp',
-  path: ['confirmPassword'],
-})
-export type RegisterBodyDTO = z4.infer<typeof RegisterBody>
-export class RegisterResDTO {
-  userId: number
+
+export class UserProfileResDTO {
+  id: string
   email: string
-  name: string
+  username: string
+  displayName: string | null
+  avatar: string | null
+  bio: string | null
+  role: string
   createdAt: Date
-  updatedAt: Date
-  constructor(partial: Partial<RegisterResDTO>) {
+  constructor(partial: Partial<UserProfileResDTO>) {
     Object.assign(this, partial)
   }
 }

@@ -11,6 +11,7 @@
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
     "target": "ES2023",
+    "types": ["node"],
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
@@ -22,5 +23,5 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false
   },
-  "include": ["src/**/*", "src/@types/express.d.ts"]
+  "include": ["src/**/*", "src/@types/express.d.ts", "prisma.config.ts"]
 }

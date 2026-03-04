@@ -16,7 +16,7 @@ export class RefreshStrategy extends PassportStrategy(Strategy, 'refresh-jwt') {
   validate(payload: TokenPayload) {
     return {
       userId: payload.userId,
-      role: payload.roles,
+      role: payload.role,
     }
   }
 }
