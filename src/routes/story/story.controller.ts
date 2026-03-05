@@ -6,12 +6,15 @@ import { ActiveUser } from 'src/shared/decorators/active-user.decorator'
 import { ResponseMessage } from 'src/shared/decorators/response-message.decorator'
 import { RolesGuard } from 'src/shared/guards/roles.guard'
 import { Roles } from 'src/shared/decorators/roles.decorator'
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 
+@ApiTags('stories')
 @Controller('stories')
 export class StoryController {
   constructor(private readonly storyService: StoryService) {}
 
   @Post()
+  @ApiBearerAuth()
   @UseGuards(AccessAuthGuard, RolesGuard)
   @Roles('WRITER', 'ADMIN')
   @ResponseMessage('Tạo truyện thành công')
@@ -38,6 +41,7 @@ export class StoryController {
   }
 
   @Get('my')
+  @ApiBearerAuth()
   @UseGuards(AccessAuthGuard)
   @ResponseMessage('Lấy danh sách truyện của tôi thành công')
   getMyStories(@ActiveUser() user: Express.User, @Query() query: StoryQueryDTO) {
@@ -51,6 +55,7 @@ export class StoryController {
   }
 
   @Put(':id')
+  @ApiBearerAuth()
   @UseGuards(AccessAuthGuard, RolesGuard)
   @Roles('WRITER', 'ADMIN')
   @ResponseMessage('Cập nhật truyện thành công')
@@ -59,6 +64,7 @@ export class StoryController {
   }
 
   @Delete(':id')
+  @ApiBearerAuth()
   @UseGuards(AccessAuthGuard, RolesGuard)
   @Roles('WRITER', 'ADMIN')
   @ResponseMessage('Xóa truyện thành công')

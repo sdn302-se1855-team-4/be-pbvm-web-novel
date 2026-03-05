@@ -3,7 +3,10 @@ import { BookmarkService } from './bookmark.service'
 import { AccessAuthGuard } from 'src/shared/guards/access-auth.guard'
 import { ActiveUser } from 'src/shared/decorators/active-user.decorator'
 import { ResponseMessage } from 'src/shared/decorators/response-message.decorator'
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 
+@ApiTags('bookmarks')
+@ApiBearerAuth()
 @Controller('bookmarks')
 @UseGuards(AccessAuthGuard)
 export class BookmarkController {

@@ -4,12 +4,15 @@ import { CreateCommentBodyDTO, UpdateCommentBodyDTO } from './comment.dto/commen
 import { AccessAuthGuard } from 'src/shared/guards/access-auth.guard'
 import { ActiveUser } from 'src/shared/decorators/active-user.decorator'
 import { ResponseMessage } from 'src/shared/decorators/response-message.decorator'
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 
+@ApiTags('comments')
 @Controller()
 export class CommentController {
   constructor(private readonly commentService: CommentService) {}
 
   @Post('stories/:storyId/comments')
+  @ApiBearerAuth()
   @UseGuards(AccessAuthGuard)
   @ResponseMessage('Tạo bình luận thành công')
   create(@Param('storyId') storyId: string, @ActiveUser() user: Express.User, @Body() body: CreateCommentBodyDTO) {
@@ -23,6 +26,7 @@ export class CommentController {
   }
 
   @Put('comments/:id')
+  @ApiBearerAuth()
   @UseGuards(AccessAuthGuard)
   @ResponseMessage('Cập nhật bình luận thành công')
   update(@Param('id') id: string, @ActiveUser() user: Express.User, @Body() body: UpdateCommentBodyDTO) {
@@ -30,6 +34,7 @@ export class CommentController {
   }
 
   @Delete('comments/:id')
+  @ApiBearerAuth()
   @UseGuards(AccessAuthGuard)
   @ResponseMessage('Xóa bình luận thành công')
   delete(@Param('id') id: string, @ActiveUser() user: Express.User) {

@@ -3,7 +3,9 @@ import { AppModule } from './app.module'
 import { UnprocessableEntityException, ValidationPipe } from '@nestjs/common'
 import { LoggingInterceptor } from './shared/interceptor/logging.interceptor'
 import { TransformInterceptor } from './shared/interceptor/transform.interceptor'
-
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
+import { cleanupOpenApiDoc } from 'nestjs-zod'
+import 'dotenv/config'
 async function bootstrap() {
   const app = await NestFactory.create(AppModule)
   app.useGlobalPipes(
@@ -30,6 +32,17 @@ async function bootstrap() {
   )
   app.useGlobalInterceptors(new LoggingInterceptor())
   app.useGlobalInterceptors(new TransformInterceptor(app.get('Reflector')))
+
+  const config = new DocumentBuilder()
+    .setTitle('Work AI Backend API')
+    .setDescription('The Work AI Backend API description')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build()
+  const document = SwaggerModule.createDocument(app, config)
+  const cleanedDocument = cleanupOpenApiDoc(document)
+  SwaggerModule.setup('api/docs', app, cleanedDocument)
+
   await app.listen(process.env.PORT ?? 3000)
 }
-bootstrap()
+void bootstrap()
