@@ -55,6 +55,7 @@ describe('AuthService', () => {
       email: 'test@example.com',
       username: 'testuser',
       password: 'password123',
+      confirmPassword: 'password123',
       displayName: 'Test User',
     }
 

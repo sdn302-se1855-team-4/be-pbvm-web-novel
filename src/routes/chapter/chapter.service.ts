@@ -59,7 +59,7 @@ export class ChapterService {
       where: { storyId_chapterNumber: { storyId, chapterNumber } },
       include: {
         author: { select: { id: true, username: true, displayName: true, avatar: true } },
-        story: { select: { id: true, title: true, slug: true, authorId: true } },
+        story: { select: { id: true, title: true, slug: true, authorId: true, type: true } },
       },
     })
     if (!chapter) throw new NotFoundException('Chapter không tồn tại')

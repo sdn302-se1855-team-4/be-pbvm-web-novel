@@ -31,6 +31,15 @@ class ConfigSchema {
 
   @IsString()
   SECRET_API_KEY: string
+
+  @IsString()
+  PAYOS_CLIENT_ID: string
+
+  @IsString()
+  PAYOS_API_KEY: string
+
+  @IsString()
+  PAYOS_CHECKSUM_KEY: string
 }
 
 const configServer = plainToInstance(ConfigSchema, process.env, {

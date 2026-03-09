@@ -9,6 +9,7 @@ export const RegisterBodySchema = z4
     password: z4.string().min(6, 'Mật khẩu tối thiểu 6 ký tự').max(50, 'Mật khẩu tối đa 50 ký tự'),
     confirmPassword: z4.string(),
     displayName: z4.string().optional(),
+    role: z4.enum(['READER', 'WRITER']).optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Mật khẩu xác nhận không khớp',

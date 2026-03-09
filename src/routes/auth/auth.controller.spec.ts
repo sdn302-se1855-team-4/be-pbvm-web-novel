@@ -29,7 +29,7 @@ describe('AuthController', () => {
 
   describe('register', () => {
     it('should call authService.register', async () => {
-      const dto = { email: 'test@example.com', username: 'test', password: 'password' }
+      const dto = { email: 'test@example.com', username: 'test', password: 'password', confirmPassword: 'password' }
       mockAuthService.register.mockResolvedValue({ user: {}, accessToken: '', refreshToken: '' })
       await controller.register(dto)
       expect(service.register).toHaveBeenCalledWith(dto)
