@@ -10,14 +10,14 @@ export class TokenService {
   signAccessToken(payload: { userId: string; role: string }) {
     return this.jwtService.signAsync(payload as TokenPayload, {
       secret: envConfig.ACCESS_TOKEN_SECRET,
-      expiresIn: envConfig.ACCESS_TOKEN_EXPIRES_IN,
+      expiresIn: envConfig.ACCESS_TOKEN_EXPIRES_IN as any,
       algorithm: 'HS256',
     })
   }
   signRefreshToken(payload: { userId: string; role: string }) {
     return this.jwtService.signAsync(payload as TokenPayload, {
       secret: envConfig.REFRESH_TOKEN_SECRET,
-      expiresIn: envConfig.REFRESH_TOKEN_EXPIRES_IN,
+      expiresIn: envConfig.REFRESH_TOKEN_EXPIRES_IN as any,
       algorithm: 'HS256',
     })
   }

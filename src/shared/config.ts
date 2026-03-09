@@ -1,4 +1,4 @@
-import { plainToInstance, Transform } from 'class-transformer'
+import { plainToInstance } from 'class-transformer'
 import { IsNotEmpty, IsString, validateSync } from 'class-validator'
 import * as fs from 'fs'
 import path from 'path'
@@ -19,13 +19,15 @@ class ConfigSchema {
 
   @IsString()
   ACCESS_TOKEN_SECRET: string
-  @Transform(({ value }) => Number(value))
-  ACCESS_TOKEN_EXPIRES_IN: number
+
+  @IsString()
+  ACCESS_TOKEN_EXPIRES_IN: string
 
   @IsString()
   REFRESH_TOKEN_SECRET: string
-  @Transform(({ value }) => Number(value))
-  REFRESH_TOKEN_EXPIRES_IN: number
+
+  @IsString()
+  REFRESH_TOKEN_EXPIRES_IN: string
 
   @IsString()
   SECRET_API_KEY: string
