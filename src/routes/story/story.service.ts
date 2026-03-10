@@ -52,6 +52,8 @@ export class StoryService {
         OR: [
           { title: { contains: search, mode: 'insensitive' as const } },
           { description: { contains: search, mode: 'insensitive' as const } },
+          { author: { displayName: { contains: search, mode: 'insensitive' as const } } },
+          { author: { username: { contains: search, mode: 'insensitive' as const } } },
         ],
       }),
       ...(type && { type }),
