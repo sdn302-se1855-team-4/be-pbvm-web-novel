@@ -2,12 +2,14 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { CreateChapterBodyType, UpdateChapterBodyType } from './chapter.dto/chapter.dto'
 import { NotificationService } from '../notification/notification.service'
+import { WalletService } from '../wallet/wallet.service'
 
 @Injectable()
 export class ChapterService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly walletService: WalletService,
   ) {}
 
   async create(storyId: string, authorId: string, userRole: string, body: CreateChapterBodyType) {
@@ -82,7 +84,7 @@ export class ChapterService {
     })
   }
 
-  async findOne(storyId: string, chapterNumber: number, skipView = false) {
+  async findOne(storyId: string, chapterNumber: number, skipView = false, userId?: string) {
     const chapter = await this.prisma.chapter.findUnique({
       where: { storyId_chapterNumber: { storyId, chapterNumber } },
       include: {
@@ -91,6 +93,30 @@ export class ChapterService {
       },
     })
     if (!chapter) throw new NotFoundException('Chapter không tồn tại')
+
+    // Access Control Logic for Premium Chapters
+    let isLocked = false
+    if (chapter.isPremium) {
+      if (!userId) {
+        // Guest user -> locked
+        isLocked = true
+      } else if (chapter.story.authorId === userId) {
+        // Author -> unlocked
+        isLocked = false
+      } else {
+        // Logged-in Reader -> check wallet for purchase
+        // Allow ADMIN to read everything as well if needed, but here we assume only author/buyer
+        const hasPurchased = await this.walletService.hasUnlockedChapter(userId, chapter.id)
+        if (!hasPurchased) {
+          isLocked = true
+        }
+      }
+
+      // If locked, completely remove the content from the response
+      if (isLocked) {
+        chapter.content = '' // Mask content
+      }
+    }
 
     // Increment view count
     if (!skipView) {
@@ -112,7 +138,7 @@ export class ChapterService {
       }),
     ])
 
-    return { ...chapter, prevChapter, nextChapter }
+    return { ...chapter, prevChapter, nextChapter, isLocked }
   }
 
   async update(storyId: string, chapterNumber: number, userId: string, userRole: string, body: UpdateChapterBodyType) {

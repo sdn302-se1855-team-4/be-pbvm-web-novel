@@ -1,7 +1,9 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, Req, UseGuards } from '@nestjs/common'
+import { Request } from 'express'
 import { ChapterService } from './chapter.service'
 import { CreateChapterBodyDTO, UpdateChapterBodyDTO } from './chapter.dto/chapter.dto'
 import { AccessAuthGuard } from 'src/shared/guards/access-auth.guard'
+import { OptionalAuthGuard } from 'src/shared/guards/optional-auth.guard'
 import { ActiveUser } from 'src/shared/decorators/active-user.decorator'
 import { ResponseMessage } from 'src/shared/decorators/response-message.decorator'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
@@ -26,13 +28,18 @@ export class ChapterController {
   }
 
   @Get(':chapterNumber')
+  @UseGuards(OptionalAuthGuard)
+  @ApiBearerAuth()
   @ResponseMessage('Lấy chi tiết chapter thành công')
   findOne(
     @Param('storyId') storyId: string,
     @Param('chapterNumber', ParseIntPipe) chapterNumber: number,
+    @Req() req: Request,
     @Query('skipView') skipView?: string,
   ) {
-    return this.chapterService.findOne(storyId, chapterNumber, skipView === 'true')
+    const user = req.user as any
+    const userId = user?.userId || user?.id
+    return this.chapterService.findOne(storyId, chapterNumber, skipView === 'true', userId)
   }
 
   @Put(':chapterNumber')
