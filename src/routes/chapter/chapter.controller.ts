@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, Req, UseGuards } from '@nestjs/common'
-import { Request } from 'express'
+import type { Request } from 'express'
 import { ChapterService } from './chapter.service'
 import { CreateChapterBodyDTO, UpdateChapterBodyDTO } from './chapter.dto/chapter.dto'
 import { AccessAuthGuard } from 'src/shared/guards/access-auth.guard'
