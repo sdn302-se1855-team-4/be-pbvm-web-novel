@@ -1,8 +1,11 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
+import { Cron, CronExpression } from '@nestjs/schedule'
 import { PrismaService } from 'src/shared/services/prisma.service'
 
 @Injectable()
 export class NotificationService {
+  private readonly logger = new Logger(NotificationService.name)
+
   constructor(private readonly prisma: PrismaService) {}
 
   async getNotifications(userId: string, page = 1, limit = 20) {
@@ -93,5 +96,23 @@ export class NotificationService {
         }),
       ),
     )
+  }
+
+  // Auto-cleanup: delete notifications older than 30 days every day at midnight
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async handleCleanup() {
+    this.logger.log('Starting notification auto-cleanup...')
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+    const result = await this.prisma.notification.deleteMany({
+      where: {
+        createdAt: {
+          lte: thirtyDaysAgo,
+        },
+      },
+    })
+
+    this.logger.log(`Notification auto-cleanup finished. Deleted ${result.count} notifications.`)
   }
 }

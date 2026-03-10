@@ -18,9 +18,11 @@ import { WalletModule } from './routes/wallet/wallet.module'
 import { ReviewModule } from './routes/review/review.module'
 import { NotificationModule } from './routes/notification/notification.module'
 import { ProfileModule } from './routes/profile/profile.module'
+import { ScheduleModule } from '@nestjs/schedule'
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     SharedModule,
     AuthModule,
     StoryModule,
