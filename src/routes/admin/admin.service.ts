@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from 'src/shared/services/prisma.service'
+import { NotificationService } from '../notification/notification.service'
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async getStats() {
     const [users, stories, chapters] = await Promise.all([
@@ -60,16 +64,29 @@ export class AdminService {
   }
 
   async approveStory(id: string) {
-    const story = await this.prisma.story.findUnique({ where: { id } })
+    const story = await this.prisma.story.findUnique({
+      where: { id },
+      include: { author: { select: { id: true, displayName: true } } },
+    })
     if (!story) throw new NotFoundException('Truyện không tồn tại')
 
-    return this.prisma.story.update({
+    const updatedStory = await this.prisma.story.update({
       where: { id },
       data: {
         isPublished: true,
         publishedAt: new Date(),
       },
     })
+
+    // Send notifications to followers
+    await this.notificationService.notifyAuthorFollowers(
+      story.authorId,
+      story.author.displayName || 'Tác giả',
+      story.id,
+      story.title,
+    )
+
+    return updatedStory
   }
 
   async rejectStory(id: string) {
@@ -111,21 +128,41 @@ export class AdminService {
   }
 
   async approveWithdrawal(id: string) {
-    const tx = await this.prisma.transaction.findUnique({ where: { id } })
+    const tx = await this.prisma.transaction.findUnique({
+      where: { id },
+      include: { wallet: { select: { userId: true } } },
+    })
     if (!tx || tx.type !== 'WITHDRAWAL') throw new NotFoundException('Giao dịch không tồn tại')
     if (tx.status !== 'PENDING') throw new NotFoundException('Giao dịch không ở trạng thái chờ')
 
-    return this.prisma.transaction.update({
+    const xuAmount = Math.abs(tx.amount)
+    const vndAmount = (xuAmount * 1000 * 0.85).toLocaleString('vi-VN')
+
+    const result = await this.prisma.transaction.update({
       where: { id },
       data: {
         status: 'COMPLETED',
         description: (tx.description || '').replace('Đang chờ xử lý', 'Đã chuyển khoản'),
       },
     })
+
+    // Send notification to author
+    await this.notificationService.createNotification({
+      userId: tx.wallet.userId,
+      type: 'ADMIN',
+      title: 'Yêu cầu rút tiền đã được duyệt',
+      message: `Yêu cầu rút ${xuAmount} xu đã được Admin duyệt. Số tiền ${vndAmount}₫ sẽ được chuyển vào tài khoản ngân hàng của bạn.`,
+      link: '/wallet',
+    })
+
+    return result
   }
 
   async rejectWithdrawal(id: string) {
-    const tx = await this.prisma.transaction.findUnique({ where: { id, type: 'WITHDRAWAL' } })
+    const tx = await this.prisma.transaction.findUnique({
+      where: { id, type: 'WITHDRAWAL' },
+      include: { wallet: { select: { userId: true } } },
+    })
     if (!tx) throw new NotFoundException('Giao dịch không tồn tại')
     if (tx.status !== 'PENDING') throw new NotFoundException('Giao dịch không ở trạng thái chờ')
 
@@ -152,12 +189,23 @@ export class AdminService {
       },
     })
 
-    return this.prisma.transaction.update({
+    const result = await this.prisma.transaction.update({
       where: { id },
       data: {
         status: 'FAILED',
         description: (tx.description || '') + ' - Đã từ chối và hoàn tiền',
       },
     })
+
+    // Send notification to author
+    await this.notificationService.createNotification({
+      userId: tx.wallet.userId,
+      type: 'ADMIN',
+      title: 'Yêu cầu rút tiền bị từ chối',
+      message: `Yêu cầu rút ${xuToRefund} xu đã bị từ chối. ${xuToRefund} xu đã được hoàn lại vào ví của bạn.`,
+      link: '/wallet',
+    })
+
+    return result
   }
 }

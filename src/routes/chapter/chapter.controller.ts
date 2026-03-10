@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common'
 import { ChapterService } from './chapter.service'
 import { CreateChapterBodyDTO, UpdateChapterBodyDTO } from './chapter.dto/chapter.dto'
 import { AccessAuthGuard } from 'src/shared/guards/access-auth.guard'
@@ -27,8 +27,12 @@ export class ChapterController {
 
   @Get(':chapterNumber')
   @ResponseMessage('Lấy chi tiết chapter thành công')
-  findOne(@Param('storyId') storyId: string, @Param('chapterNumber', ParseIntPipe) chapterNumber: number) {
-    return this.chapterService.findOne(storyId, chapterNumber)
+  findOne(
+    @Param('storyId') storyId: string,
+    @Param('chapterNumber', ParseIntPipe) chapterNumber: number,
+    @Query('skipView') skipView?: string,
+  ) {
+    return this.chapterService.findOne(storyId, chapterNumber, skipView === 'true')
   }
 
   @Put(':chapterNumber')

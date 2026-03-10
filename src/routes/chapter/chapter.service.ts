@@ -1,10 +1,14 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { CreateChapterBodyType, UpdateChapterBodyType } from './chapter.dto/chapter.dto'
+import { NotificationService } from '../notification/notification.service'
 
 @Injectable()
 export class ChapterService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async create(storyId: string, authorId: string, userRole: string, body: CreateChapterBodyType) {
     const story = await this.prisma.story.findUnique({ where: { id: storyId } })
@@ -28,7 +32,31 @@ export class ChapterService {
       data: { totalChapters: { increment: 1 } },
     })
 
+    // Notify bookmarkers if published
+    if (chapter.isPublished) {
+      await this.notifyBookmarkers(storyId, chapter.chapterNumber, story.title)
+    }
+
     return chapter
+  }
+
+  private async notifyBookmarkers(storyId: string, chapterNumber: number, storyTitle: string) {
+    const bookmarkers = await this.prisma.bookmark.findMany({
+      where: { storyId },
+      select: { userId: true },
+    })
+
+    await Promise.all(
+      bookmarkers.map((b) =>
+        this.notificationService.createNotification({
+          userId: b.userId,
+          type: 'NEW_CHAPTER',
+          title: 'Chương mới từ truyện bạn lưu',
+          message: `Chương ${chapterNumber} của bộ truyện "${storyTitle}" vừa được đăng tải.`,
+          link: `/stories/${storyId}/chapters/${chapterNumber}`,
+        }),
+      ),
+    )
   }
 
   async findAllByStory(storyId: string) {
@@ -54,7 +82,7 @@ export class ChapterService {
     })
   }
 
-  async findOne(storyId: string, chapterNumber: number) {
+  async findOne(storyId: string, chapterNumber: number, skipView = false) {
     const chapter = await this.prisma.chapter.findUnique({
       where: { storyId_chapterNumber: { storyId, chapterNumber } },
       include: {
@@ -65,10 +93,12 @@ export class ChapterService {
     if (!chapter) throw new NotFoundException('Chapter không tồn tại')
 
     // Increment view count
-    await this.prisma.chapter.update({
-      where: { id: chapter.id },
-      data: { viewCount: { increment: 1 } },
-    })
+    if (!skipView) {
+      await this.prisma.chapter.update({
+        where: { id: chapter.id },
+        data: { viewCount: { increment: 1 } },
+      })
+    }
 
     // Get previous/next chapter info
     const [prevChapter, nextChapter] = await Promise.all([
@@ -95,13 +125,27 @@ export class ChapterService {
       throw new ForbiddenException('Bạn không có quyền chỉnh sửa chapter này')
     }
 
-    return this.prisma.chapter.update({
+    const updated = await this.prisma.chapter.update({
       where: { id: chapter.id },
       data: {
         ...body,
         ...(body.isPublished && !chapter.publishedAt && { publishedAt: new Date() }),
       },
     })
+
+    // If it was just published, notify bookmarkers
+    if (body.isPublished && !chapter.isPublished) {
+      // Need story title
+      const story = await this.prisma.story.findUnique({
+        where: { id: storyId },
+        select: { title: true },
+      })
+      if (story) {
+        await this.notifyBookmarkers(storyId, updated.chapterNumber, story.title)
+      }
+    }
+
+    return updated
   }
 
   async delete(storyId: string, chapterNumber: number, userId: string, userRole: string) {

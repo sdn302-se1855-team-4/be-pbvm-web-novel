@@ -50,4 +50,23 @@ export class NotificationService {
   }) {
     return this.prisma.notification.create({ data })
   }
+
+  async notifyAuthorFollowers(authorId: string, authorDisplayName: string, storyId: string, storyTitle: string) {
+    const followers = await this.prisma.follow.findMany({
+      where: { followingId: authorId },
+      select: { followerId: true },
+    })
+
+    await Promise.all(
+      followers.map((f) =>
+        this.createNotification({
+          userId: f.followerId,
+          type: 'SYSTEM',
+          title: 'Tác giả bạn theo dõi ra truyện mới',
+          message: `${authorDisplayName} vừa ra mắt bộ truyện mới: ${storyTitle}`,
+          link: `/stories/${storyId}`,
+        }),
+      ),
+    )
+  }
 }

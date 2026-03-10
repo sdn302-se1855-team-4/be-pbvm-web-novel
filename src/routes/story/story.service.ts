@@ -2,10 +2,14 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { CreateStoryBodyType, UpdateStoryBodyType, StoryQueryType } from './story.dto/story.dto'
 import { Prisma } from '@prisma/client'
+import { NotificationService } from '../notification/notification.service'
 
 @Injectable()
 export class StoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async create(authorId: string, body: CreateStoryBodyType) {
     const { genreIds, tagIds, ...storyData } = body
@@ -16,6 +20,7 @@ export class StoryService {
         authorId,
         genres: genreIds?.length ? { create: genreIds.map((genreId) => ({ genreId })) } : undefined,
         tags: tagIds?.length ? { create: tagIds.map((tagId) => ({ tagId })) } : undefined,
+        ...(body.isPublished && { publishedAt: new Date() }),
       },
       include: {
         author: { select: { id: true, username: true, displayName: true, avatar: true } },
@@ -23,6 +28,17 @@ export class StoryService {
         tags: { include: { tag: true } },
       },
     })
+
+    // If story is published on creation, notify followers
+    if (story.isPublished) {
+      await this.notificationService.notifyAuthorFollowers(
+        story.authorId,
+        story.author.displayName || 'Tác giả',
+        story.id,
+        story.title,
+      )
+    }
+
     return story
   }
 
@@ -70,7 +86,7 @@ export class StoryService {
     }
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, skipView = false) {
     const story = await this.prisma.story.findUnique({
       where: { id },
       include: {
@@ -97,10 +113,12 @@ export class StoryService {
     if (!story) throw new NotFoundException('Truyện không tồn tại')
 
     // Increment view count
-    await this.prisma.story.update({
-      where: { id },
-      data: { viewCount: { increment: 1 } },
-    })
+    if (!skipView) {
+      await this.prisma.story.update({
+        where: { id },
+        data: { viewCount: { increment: 1 } },
+      })
+    }
 
     return story
   }
@@ -137,6 +155,17 @@ export class StoryService {
         tags: { include: { tag: true } },
       },
     })
+
+    // If story was just published, notify followers
+    if (body.isPublished && !story.isPublished) {
+      await this.notificationService.notifyAuthorFollowers(
+        updated.authorId,
+        updated.author.displayName || 'Tác giả',
+        updated.id,
+        updated.title,
+      )
+    }
+
     return updated
   }
 
