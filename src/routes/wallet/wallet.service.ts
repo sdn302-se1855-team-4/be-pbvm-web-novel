@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { DepositBodyType, PurchaseChapterBodyType, DonateBodyType, WithdrawBodyType } from './wallet.dto'
 import { PayosService } from 'src/shared/services/payos.service'
+import { NotificationService } from '../notification/notification.service'
 
 // Conversion rate: 1000 VND = 1 xu
 const VND_PER_XU = 1000
@@ -15,6 +16,7 @@ export class WalletService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly payosService: PayosService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   // Get or create wallet for user
@@ -296,6 +298,21 @@ export class WalletService {
       },
     })
 
+    // Notify author about the purchase
+    const buyer = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { displayName: true, username: true },
+    })
+    const buyerName = buyer?.displayName || buyer?.username || 'Một độc giả'
+
+    await this.notificationService.createNotification({
+      userId: chapter.story.authorId,
+      type: 'SYSTEM',
+      title: 'Có người mua chương của bạn',
+      message: `${buyerName} vừa mua chương "${chapter.title}" của bộ truyện "${chapter.story.title}". Bạn nhận được ${authorEarning} xu.`,
+      link: '/wallet',
+    })
+
     return { message: 'Mua chương thành công', balance: updatedWallet.balance }
   }
 
@@ -358,6 +375,21 @@ export class WalletService {
         storyId: body.storyId,
         isAnonymous: body.isAnonymous,
       },
+    })
+
+    // Notify the author about the donation
+    const donor = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { displayName: true, username: true },
+    })
+    const donorName = body.isAnonymous ? 'Một độc giả ẩn danh' : donor?.displayName || donor?.username || 'Một độc giả'
+
+    await this.notificationService.createNotification({
+      userId: body.toUserId,
+      type: 'DONATION_RECEIVED',
+      title: 'Bạn nhận được ủng hộ',
+      message: `${donorName} vừa ủng hộ bạn ${body.amount} xu.${body.message ? ` Lời nhắn: "${body.message}"` : ''}`,
+      link: '/wallet',
     })
 
     return { message: `Ủng hộ ${body.amount} xu thành công`, balance: updatedSender.balance }
