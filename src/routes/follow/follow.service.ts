@@ -1,9 +1,13 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from 'src/shared/services/prisma.service'
+import { NotificationService } from '../notification/notification.service'
 
 @Injectable()
 export class FollowService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async follow(followerId: string, followingId: string) {
     if (followerId === followingId) {
@@ -21,6 +25,22 @@ export class FollowService {
     await this.prisma.follow.create({
       data: { followerId, followingId },
     })
+
+    // Notify the followed user
+    const followerUser = await this.prisma.user.findUnique({
+      where: { id: followerId },
+      select: { displayName: true, username: true },
+    })
+    const followerName = followerUser?.displayName || followerUser?.username || 'Một người dùng'
+
+    await this.notificationService.createNotification({
+      userId: followingId,
+      type: 'NEW_FOLLOWER',
+      title: 'Người theo dõi mới',
+      message: `${followerName} vừa theo dõi bạn.`,
+      link: `/users/${followerId}`,
+    })
+
     return { message: 'Follow thành công' }
   }
 

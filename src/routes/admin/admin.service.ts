@@ -78,6 +78,15 @@ export class AdminService {
       },
     })
 
+    // Notify THE AUTHOR that their story was approved
+    await this.notificationService.createNotification({
+      userId: story.authorId,
+      type: 'ADMIN',
+      title: 'Truyện đã được duyệt',
+      message: `Bộ truyện "${story.title}" của bạn đã được Admin phê duyệt và xuất bản thành công!`,
+      link: `/stories/${story.id}`,
+    })
+
     // Send notifications to followers
     await this.notificationService.notifyAuthorFollowers(
       story.authorId,

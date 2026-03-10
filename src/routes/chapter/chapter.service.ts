@@ -34,9 +34,10 @@ export class ChapterService {
       data: { totalChapters: { increment: 1 } },
     })
 
-    // Notify bookmarkers if published
+    // Notify bookmarkers and followers if published
     if (chapter.isPublished) {
       await this.notifyBookmarkers(storyId, chapter.chapterNumber, story.title)
+      await this.notificationService.notifyFollowersNewChapter(authorId, storyId, story.title, chapter.chapterNumber)
     }
 
     return chapter
@@ -159,15 +160,21 @@ export class ChapterService {
       },
     })
 
-    // If it was just published, notify bookmarkers
+    // If it was just published, notify bookmarkers and followers
     if (body.isPublished && !chapter.isPublished) {
       // Need story title
       const story = await this.prisma.story.findUnique({
         where: { id: storyId },
-        select: { title: true },
+        select: { title: true, authorId: true },
       })
       if (story) {
         await this.notifyBookmarkers(storyId, updated.chapterNumber, story.title)
+        await this.notificationService.notifyFollowersNewChapter(
+          story.authorId,
+          storyId,
+          story.title,
+          updated.chapterNumber,
+        )
       }
     }
 

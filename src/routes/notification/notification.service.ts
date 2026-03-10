@@ -69,4 +69,29 @@ export class NotificationService {
       ),
     )
   }
+
+  async notifyFollowersNewChapter(authorId: string, storyId: string, storyTitle: string, chapterNumber: number) {
+    const author = await this.prisma.user.findUnique({
+      where: { id: authorId },
+      select: { displayName: true, username: true },
+    })
+    const authorName = author?.displayName || author?.username || 'Tác giả'
+
+    const followers = await this.prisma.follow.findMany({
+      where: { followingId: authorId },
+      select: { followerId: true },
+    })
+
+    await Promise.all(
+      followers.map((f) =>
+        this.createNotification({
+          userId: f.followerId,
+          type: 'NEW_CHAPTER',
+          title: 'Chương mới từ tác giả bạn theo dõi',
+          message: `${authorName} vừa đăng Chương ${chapterNumber} của bộ truyện "${storyTitle}".`,
+          link: `/stories/${storyId}/chapters/${chapterNumber}`,
+        }),
+      ),
+    )
+  }
 }
