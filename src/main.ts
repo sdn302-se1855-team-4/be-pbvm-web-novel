@@ -45,6 +45,11 @@ async function bootstrap() {
   const cleanedDocument = cleanupOpenApiDoc(document)
   SwaggerModule.setup('api/docs', app, cleanedDocument)
 
+  app.enableCors({
+    origin: 'http://localhost:3001',
+    credentials: true,
+  })
+
   await app.listen(process.env.PORT ?? 3000)
 }
 void bootstrap()

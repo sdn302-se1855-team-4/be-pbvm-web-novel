@@ -34,6 +34,7 @@ export class AuthService {
         username: body.username,
         passwordHash,
         displayName: body.displayName || body.username,
+        role: body.role || 'READER',
       },
     })
 

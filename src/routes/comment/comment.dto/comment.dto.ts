@@ -3,7 +3,7 @@ import { createZodDto } from 'nestjs-zod'
 
 export const CreateCommentBodySchema = z4.object({
   content: z4.string().min(1, 'Nội dung bình luận không được để trống').max(5000, 'Nội dung tối đa 5000 ký tự'),
-  parentId: z4.string().optional(),
+  parentId: z4.string().nullable().optional(),
 })
 
 export type CreateCommentBodyType = z4.infer<typeof CreateCommentBodySchema>

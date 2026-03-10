@@ -51,7 +51,7 @@ export class BookmarkService {
       this.prisma.bookmark.count({ where: { userId } }),
     ])
     return {
-      data: data.map((b) => b.story),
+      data: data,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     }
   }

@@ -50,8 +50,8 @@ export class StoryController {
 
   @Get(':id')
   @ResponseMessage('Lấy chi tiết truyện thành công')
-  findOne(@Param('id') id: string) {
-    return this.storyService.findOne(id)
+  findOne(@Param('id') id: string, @Query('skipView') skipView?: string) {
+    return this.storyService.findOne(id, skipView === 'true')
   }
 
   @Put(':id')
