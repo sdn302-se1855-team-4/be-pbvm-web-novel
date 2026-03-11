@@ -298,6 +298,11 @@ export class WalletService {
       },
     })
 
+    await this.prisma.story.update({
+      where: { id: chapter.storyId },
+      data: { totalEarnings: { increment: authorEarning } },
+    })
+
     // Notify author about the purchase
     const buyer = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -365,6 +370,13 @@ export class WalletService {
         status: 'COMPLETED',
       },
     })
+
+    if (body.storyId) {
+      await this.prisma.story.update({
+        where: { id: body.storyId },
+        data: { totalEarnings: { increment: body.amount } },
+      })
+    }
 
     await this.prisma.donation.create({
       data: {

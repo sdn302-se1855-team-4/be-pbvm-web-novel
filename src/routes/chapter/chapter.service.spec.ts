@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { ChapterService } from './chapter.service'
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { ForbiddenException, NotFoundException } from '@nestjs/common'
+import { NotificationService } from '../notification/notification.service'
+import { WalletService } from '../wallet/wallet.service'
 
 describe('ChapterService', () => {
   let service: ChapterService
@@ -22,9 +24,24 @@ describe('ChapterService', () => {
     },
   }
 
+  const mockNotificationService = {
+    createNotification: jest.fn(),
+    notifyBookmarkers: jest.fn(),
+    notifyFollowersNewChapter: jest.fn(),
+  }
+
+  const mockWalletService = {
+    hasUnlockedChapter: jest.fn(),
+  }
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ChapterService, { provide: PrismaService, useValue: mockPrismaService }],
+      providers: [
+        ChapterService,
+        { provide: PrismaService, useValue: mockPrismaService },
+        { provide: NotificationService, useValue: mockNotificationService },
+        { provide: WalletService, useValue: mockWalletService },
+      ],
     }).compile()
 
     service = module.get<ChapterService>(ChapterService)
@@ -71,10 +88,16 @@ describe('ChapterService', () => {
     })
 
     it('should return chapter with navigation', async () => {
-      const mockChapter = { id: 'id', storyId: 's', chapterNumber: 1 }
+      const mockChapter = { 
+        id: 'id', 
+        storyId: 's', 
+        chapterNumber: 1, 
+        isPremium: false,
+        story: { authorId: 'a', title: 't' }
+      }
       mockPrismaService.chapter.findUnique.mockResolvedValue(mockChapter)
       mockPrismaService.chapter.update.mockResolvedValue(mockChapter)
-      mockPrismaService.chapter.findFirst.mockResolvedValue(null) // for prev/next
+      mockPrismaService.chapter.findFirst.mockResolvedValue(null)
       const result = await service.findOne('s', 1)
       expect(result.id).toBe('id')
       expect(prisma.chapter.update).toHaveBeenCalled()

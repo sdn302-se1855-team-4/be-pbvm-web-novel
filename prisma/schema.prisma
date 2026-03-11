@@ -60,6 +60,7 @@ model Story {
   status         StoryStatus      @default(ONGOING)
   authorId       String
   viewCount      Int              @default(0)
+  totalEarnings  Int              @default(0)
   totalChapters  Int              @default(0)
   rating         Float            @default(0)
   totalRatings   Int              @default(0)

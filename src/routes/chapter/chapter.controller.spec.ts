@@ -46,8 +46,9 @@ describe('ChapterController', () => {
 
   describe('findOne', () => {
     it('should call chapterService.findOne', async () => {
-      await controller.findOne('story_id', 1)
-      expect(service.findOne).toHaveBeenCalledWith('story_id', 1)
+      const req = { user: { userId: 'u' } } as any
+      await controller.findOne('story_id', 1, req)
+      expect(service.findOne).toHaveBeenCalledWith('story_id', 1, false, 'u')
     })
   })
 
