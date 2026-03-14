@@ -5,7 +5,7 @@ import { LoggingInterceptor } from './shared/interceptor/logging.interceptor'
 import { TransformInterceptor } from './shared/interceptor/transform.interceptor'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { cleanupOpenApiDoc, ZodValidationPipe } from 'nestjs-zod'
-import 'dotenv/config'
+import { ConfigService } from '@nestjs/config'
 async function bootstrap() {
   const app = await NestFactory.create(AppModule)
   // app.useGlobalPipes(
@@ -45,8 +45,11 @@ async function bootstrap() {
   const cleanedDocument = cleanupOpenApiDoc(document)
   SwaggerModule.setup('api/docs', app, cleanedDocument)
 
+  const configService = app.get(ConfigService)
+  const origins = configService.get<string[]>('CORS_ALLOWED_ORIGINS')
+
   app.enableCors({
-    origin: 'http://localhost:3001',
+    origin: origins,
     credentials: true,
   })
 

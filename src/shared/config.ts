@@ -25,6 +25,10 @@ const envSchema = z.object({
   FIREBASE_PRIVATE_KEY: z.string().transform((key) => key.replace(/\\n/g, '\n')),
 
   PORT: z.string().optional().default('3000'),
+  CORS_ALLOWED_ORIGINS: z
+    .string()
+    .default('http://localhost:3000')
+    .transform((val) => val.split(',').map((s) => s.trim())),
 })
 
 export type EnvConfig = z.infer<typeof envSchema>
