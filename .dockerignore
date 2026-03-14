@@ -15,7 +15,4 @@ test
 coverage
 .prettierrc
 eslint.config.mjs
-nest-cli.json
-tsconfig.build.json
-tsconfig.json
 api_samples.md
