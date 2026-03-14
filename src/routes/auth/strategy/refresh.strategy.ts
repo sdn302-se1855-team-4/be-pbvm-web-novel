@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common'
 import { PassportStrategy } from '@nestjs/passport'
 import { ExtractJwt, Strategy } from 'passport-jwt'
-import envConfig from 'src/shared/config'
+import { ConfigService } from '@nestjs/config'
 import { TokenPayload } from 'src/shared/types/jwt.type'
 
 @Injectable()
 export class RefreshStrategy extends PassportStrategy(Strategy, 'refresh-jwt') {
-  constructor() {
+  constructor(private readonly configService: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      secretOrKey: envConfig.REFRESH_TOKEN_SECRET,
+      secretOrKey: configService.get<string>('auth.refreshTokenSecret')!,
     })
   }
 
@@ -17,6 +17,7 @@ export class RefreshStrategy extends PassportStrategy(Strategy, 'refresh-jwt') {
     return {
       userId: payload.userId,
       role: payload.role,
+      jti: payload.jti,
     }
   }
 }

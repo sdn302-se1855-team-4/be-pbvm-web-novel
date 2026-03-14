@@ -3,7 +3,14 @@ import { TokenService } from 'src/shared/services/token.service'
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { HashingService } from 'src/shared/services/hashing.service'
 import { FirebaseService } from 'src/shared/services/firebase.service'
+import { RedisService } from 'src/shared/services/redis.service'
+import { ConfigService } from '@nestjs/config'
 import { RegisterBodyType, LoginBodyType } from './auth.dto/auth.dto'
+import {
+  MAX_SESSIONS_PER_USER,
+  REFRESH_TOKEN_SESSIONS_KEY,
+  REFRESH_TOKEN_JTI_KEY,
+} from 'src/shared/constants/redis-keys.constant'
 
 @Injectable()
 export class AuthService {
@@ -12,6 +19,8 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly hashingService: HashingService,
     private readonly firebaseService: FirebaseService,
+    private readonly redisService: RedisService,
+    private readonly configService: ConfigService,
   ) {}
 
   async register(body: RegisterBodyType) {
@@ -86,13 +95,27 @@ export class AuthService {
     }
   }
 
-  async refreshToken(userId: string) {
+  async refreshToken(userId: string, oldJti?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     })
     if (!user) {
       throw new UnauthorizedException('User không tồn tại')
     }
+
+    // Validate old jti exists in Redis (token reuse detection)
+    if (oldJti) {
+      const jtiKey = REFRESH_TOKEN_JTI_KEY(oldJti)
+      const exists = await this.redisService.exists(jtiKey)
+      if (!exists) {
+        throw new UnauthorizedException('Refresh token đã bị thu hồi hoặc hết hạn')
+      }
+
+      // Remove old jti (token rotation: old token is invalidated)
+      const sessionsKey = REFRESH_TOKEN_SESSIONS_KEY(userId)
+      await this.redisService.removeRefreshTokenSession(sessionsKey, jtiKey, oldJti)
+    }
+
     return this.generateTokens({ userId: user.id, role: user.role })
   }
 
@@ -143,7 +166,6 @@ export class AuthService {
     })
 
     if (user) {
-      // Update googleId if not set (user registered with email before)
       if (!user.googleId) {
         user = await this.prisma.user.update({
           where: { id: user.id },
@@ -190,11 +212,39 @@ export class AuthService {
     }
   }
 
+  /**
+   * Logout: invalidate the refresh token by jti.
+   */
+  async logout(userId: string, jti?: string) {
+    if (jti) {
+      const sessionsKey = REFRESH_TOKEN_SESSIONS_KEY(userId)
+      const jtiKey = REFRESH_TOKEN_JTI_KEY(jti)
+      await this.redisService.removeRefreshTokenSession(sessionsKey, jtiKey, jti)
+    }
+    return { message: 'Đăng xuất thành công' }
+  }
+
   private async generateTokens(payload: { userId: string; role: string }) {
-    const [accessToken, refreshToken] = await Promise.all([
+    const [accessToken, refreshResult] = await Promise.all([
       this.tokenService.signAccessToken(payload),
       this.tokenService.signRefreshToken(payload),
     ])
-    return { accessToken, refreshToken }
+
+    // Store refresh token jti in Redis atomically (max 3 devices)
+    const sessionsKey = REFRESH_TOKEN_SESSIONS_KEY(payload.userId)
+    const jtiKey = REFRESH_TOKEN_JTI_KEY(refreshResult.jti)
+
+    const expiresInSec = this.configService.get<number>('auth.refreshTokenExpiresIn') || 86400
+
+    await this.redisService.addRefreshTokenSession(
+      sessionsKey,
+      jtiKey,
+      refreshResult.jti,
+      payload.userId,
+      MAX_SESSIONS_PER_USER,
+      expiresInSec,
+    )
+
+    return { accessToken, refreshToken: refreshResult.token }
   }
 }

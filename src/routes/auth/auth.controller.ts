@@ -34,8 +34,16 @@ export class AuthController {
   @ApiBearerAuth()
   @UseGuards(RefreshAuthGuard)
   @ResponseMessage('Refresh token thành công')
-  refreshToken(@ActiveUser() user: Express.User) {
-    return this.authService.refreshToken(user.userId)
+  refreshToken(@ActiveUser() user: Express.User & { jti?: string }) {
+    return this.authService.refreshToken(user.userId, user.jti)
+  }
+
+  @Post('logout')
+  @ApiBearerAuth()
+  @UseGuards(RefreshAuthGuard)
+  @ResponseMessage('Đăng xuất thành công')
+  logout(@ActiveUser() user: Express.User & { jti?: string }) {
+    return this.authService.logout(user.userId, user.jti)
   }
 
   @Get('profile')

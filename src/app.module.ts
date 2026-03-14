@@ -1,7 +1,15 @@
 import { Module } from '@nestjs/common'
+import { ConfigModule } from '@nestjs/config'
 import { AppController } from './app.controller'
 import { AppService } from './app.service'
 import { SharedModule } from './shared/shared.module'
+
+import { validate } from './shared/config'
+import authConfig from './shared/config/auth.config'
+import databaseConfig from './shared/config/database.config'
+import firebaseConfig from './shared/config/firebase.config'
+import payosConfig from './shared/config/payos.config'
+import redisConfig from './shared/config/redis.config'
 
 import { AuthModule } from './routes/auth/auth.module'
 import { StoryModule } from './routes/story/story.module'
@@ -22,6 +30,11 @@ import { ScheduleModule } from '@nestjs/schedule'
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [authConfig, databaseConfig, firebaseConfig, payosConfig, redisConfig],
+      validate,
+    }),
     ScheduleModule.forRoot(),
     SharedModule,
     AuthModule,

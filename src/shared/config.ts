@@ -2,10 +2,10 @@ import { plainToInstance } from 'class-transformer'
 import { IsNotEmpty, IsString, validateSync } from 'class-validator'
 import * as fs from 'fs'
 import path from 'path'
-import { config } from 'dotenv'
-config({
-  path: '.env',
-})
+import { config as dotenvConfig } from 'dotenv'
+
+dotenvConfig({ path: '.env' })
+
 //kiểm tra .env tồn tại hay chưa
 if (!fs.existsSync(path.resolve('.env'))) {
   console.log('không tìm thấy file .env')
@@ -45,6 +45,18 @@ class ConfigSchema {
   UPTASH_REDIS_HOST: string
 
   @IsString()
+  UPTASH_REDIS_PASSWORD: string
+
+  @IsString()
+  UPTASH_REDIS_PORT: string
+
+  @IsString()
+  UPTASH_REDIS_USER: string
+
+  @IsString()
+  UPTASH_REDIS_TLS: string
+
+  @IsString()
   FIREBASE_PROJECT_ID: string
 
   @IsString()
@@ -54,21 +66,22 @@ class ConfigSchema {
   FIREBASE_PRIVATE_KEY: string
 }
 
-const configServer = plainToInstance(ConfigSchema, process.env, {
-  enableImplicitConversion: true,
-})
-const e = validateSync(configServer)
-if (e.length > 0) {
-  console.log('các giá trị trong .env ko hợp lệ')
-  const errors = e.map((eItem) => {
-    return {
-      poperty: eItem.property,
-      constraints: eItem.constraints,
-      value: eItem.value as unknown,
-    }
+export function validate(config: Record<string, unknown>) {
+  const validatedConfig = plainToInstance(ConfigSchema, config, {
+    enableImplicitConversion: true,
   })
-  throw errors as unknown
+  const errors = validateSync(validatedConfig, { skipMissingProperties: false })
+
+  if (errors.length > 0) {
+    const errorMessages = errors.map((e) => {
+      return {
+        property: e.property,
+        constraints: e.constraints,
+        value: e.value,
+      }
+    })
+    console.error('Environment variables validation failed:', JSON.stringify(errorMessages, null, 2))
+    throw new Error('Environment variables validation failed')
+  }
+  return validatedConfig
 }
-const envConfig = configServer
-// console.log(process.env)
-export default envConfig

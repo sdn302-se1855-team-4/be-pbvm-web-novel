@@ -1,16 +1,16 @@
 import { Injectable } from '@nestjs/common'
 import { PayOS } from '@payos/node'
-import envConfig from 'src/shared/config'
+import { ConfigService } from '@nestjs/config'
 
 @Injectable()
 export class PayosService {
   private payos: any
 
-  constructor() {
+  constructor(private readonly configService: ConfigService) {
     this.payos = new PayOS({
-      clientId: envConfig.PAYOS_CLIENT_ID,
-      apiKey: envConfig.PAYOS_API_KEY,
-      checksumKey: envConfig.PAYOS_CHECKSUM_KEY,
+      clientId: this.configService.get<string>('payos.clientId')!,
+      apiKey: this.configService.get<string>('payos.apiKey')!,
+      checksumKey: this.configService.get<string>('payos.checksumKey')!,
     })
   }
 
