@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from 'src/shared/services/prisma.service'
+import { RedisService } from 'src/shared/services/redis.service'
 import { CreateStoryBodyType, UpdateStoryBodyType, StoryQueryType } from './story.dto/story.dto'
 import { Prisma } from '@prisma/client'
 import { NotificationService } from '../notification/notification.service'
@@ -8,6 +9,7 @@ import { NotificationService } from '../notification/notification.service'
 export class StoryService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly redisService: RedisService,
     private readonly notificationService: NotificationService,
   ) {}
 
@@ -39,12 +41,20 @@ export class StoryService {
       )
     }
 
+    // Invalidate story list cache
+    await this.redisService.delByPattern('stories:*')
+
     return story
   }
 
   async findAll(query: StoryQueryType) {
     const { page, limit, search, type, status, genreId, sortBy, sortOrder } = query
     const skip = (page - 1) * limit
+
+    // Cache key based on query params
+    const cacheKey = `stories:list:${JSON.stringify(query)}`
+    const cached = await this.redisService.get(cacheKey)
+    if (cached) return cached
 
     const where: Prisma.StoryWhereInput = {
       isPublished: true,
@@ -77,7 +87,7 @@ export class StoryService {
       this.prisma.story.count({ where }),
     ])
 
-    return {
+    const result = {
       data: stories,
       pagination: {
         page,
@@ -86,9 +96,26 @@ export class StoryService {
         totalPages: Math.ceil(total / limit),
       },
     }
+
+    await this.redisService.set(cacheKey, result, 300) // 5 min
+    return result
   }
 
   async findOne(id: string, skipView = false) {
+    // Check cache first
+    const cacheKey = `story:${id}`
+    const cached = await this.redisService.get(cacheKey)
+    if (cached) {
+      // Still increment view count even from cache
+      if (!skipView) {
+        await this.prisma.story.update({
+          where: { id },
+          data: { viewCount: { increment: 1 } },
+        })
+      }
+      return cached
+    }
+
     const story = await this.prisma.story.findUnique({
       where: { id },
       include: {
@@ -122,6 +149,7 @@ export class StoryService {
       })
     }
 
+    await this.redisService.set(cacheKey, story, 600) // 10 min
     return story
   }
 
@@ -168,6 +196,10 @@ export class StoryService {
       )
     }
 
+    // Invalidate caches
+    await this.redisService.del(`story:${id}`)
+    await this.redisService.delByPattern('stories:*')
+
     return updated
   }
 
@@ -179,16 +211,29 @@ export class StoryService {
     }
 
     await this.prisma.story.delete({ where: { id } })
+
+    // Invalidate caches
+    await this.redisService.del(`story:${id}`)
+    await this.redisService.delByPattern('stories:*')
+
     return { message: 'Xóa truyện thành công' }
   }
 
   // ==================== Genre & Tag helpers ====================
   async findAllGenres() {
-    return this.prisma.genre.findMany({ orderBy: { name: 'asc' } })
+    const cached = await this.redisService.get('genres:all')
+    if (cached) return cached
+    const genres = await this.prisma.genre.findMany({ orderBy: { name: 'asc' } })
+    await this.redisService.set('genres:all', genres, 1800) // 30 min
+    return genres
   }
 
   async findAllTags() {
-    return this.prisma.tag.findMany({ orderBy: { name: 'asc' } })
+    const cached = await this.redisService.get('tags:all')
+    if (cached) return cached
+    const tags = await this.prisma.tag.findMany({ orderBy: { name: 'asc' } })
+    await this.redisService.set('tags:all', tags, 1800) // 30 min
+    return tags
   }
 
   async getMyStories(userId: string, query: StoryQueryType) {

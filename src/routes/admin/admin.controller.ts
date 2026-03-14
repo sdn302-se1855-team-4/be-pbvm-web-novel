@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Put, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { AdminService } from './admin.service'
 import { AccessAuthGuard } from 'src/shared/guards/access-auth.guard'
@@ -60,5 +60,57 @@ export class AdminController {
   @ResponseMessage('Từ chối yêu cầu rút tiền thành công')
   rejectWithdrawal(@Param('id') id: string) {
     return this.adminService.rejectWithdrawal(id)
+  }
+
+  // ==================== Genre CRUD ====================
+
+  @Get('genres')
+  @ResponseMessage('Lấy danh sách thể loại thành công')
+  getGenres() {
+    return this.adminService.getGenres()
+  }
+
+  @Post('genres')
+  @ResponseMessage('Tạo thể loại thành công')
+  createGenre(@Body() body: { name: string; slug: string }) {
+    return this.adminService.createGenre(body.name, body.slug)
+  }
+
+  @Put('genres/:id')
+  @ResponseMessage('Cập nhật thể loại thành công')
+  updateGenre(@Param('id') id: string, @Body() body: { name?: string; slug?: string }) {
+    return this.adminService.updateGenre(id, body.name, body.slug)
+  }
+
+  @Delete('genres/:id')
+  @ResponseMessage('Xóa thể loại thành công')
+  deleteGenre(@Param('id') id: string) {
+    return this.adminService.deleteGenre(id)
+  }
+
+  // ==================== Tag CRUD ====================
+
+  @Get('tags')
+  @ResponseMessage('Lấy danh sách tag thành công')
+  getTags() {
+    return this.adminService.getTags()
+  }
+
+  @Post('tags')
+  @ResponseMessage('Tạo tag thành công')
+  createTag(@Body() body: { name: string; slug: string }) {
+    return this.adminService.createTag(body.name, body.slug)
+  }
+
+  @Put('tags/:id')
+  @ResponseMessage('Cập nhật tag thành công')
+  updateTag(@Param('id') id: string, @Body() body: { name?: string; slug?: string }) {
+    return this.adminService.updateTag(id, body.name, body.slug)
+  }
+
+  @Delete('tags/:id')
+  @ResponseMessage('Xóa tag thành công')
+  deleteTag(@Param('id') id: string) {
+    return this.adminService.deleteTag(id)
   }
 }

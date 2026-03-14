@@ -30,6 +30,15 @@ export type LoginBodyType = z4.infer<typeof LoginBodySchema>
 
 export class LoginBodyDTO extends createZodDto(LoginBodySchema) {}
 
+// ==================== Google Login ====================
+export const GoogleLoginBodySchema = z4.object({
+  idToken: z4.string().min(1, 'ID Token không được để trống'),
+})
+
+export type GoogleLoginBodyType = z4.infer<typeof GoogleLoginBodySchema>
+
+export class GoogleLoginBodyDTO extends createZodDto(GoogleLoginBodySchema) {}
+
 // ==================== Response DTOs ====================
 export class AuthTokensResDTO {
   accessToken: string

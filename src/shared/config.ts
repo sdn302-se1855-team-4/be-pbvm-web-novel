@@ -40,6 +40,18 @@ class ConfigSchema {
 
   @IsString()
   PAYOS_CHECKSUM_KEY: string
+
+  @IsString()
+  UPTASH_REDIS_HOST: string
+
+  @IsString()
+  FIREBASE_PROJECT_ID: string
+
+  @IsString()
+  FIREBASE_CLIENT_EMAIL: string
+
+  @IsString()
+  FIREBASE_PRIVATE_KEY: string
 }
 
 const configServer = plainToInstance(ConfigSchema, process.env, {

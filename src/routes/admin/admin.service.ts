@@ -1,11 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from 'src/shared/services/prisma.service'
+import { RedisService } from 'src/shared/services/redis.service'
 import { NotificationService } from '../notification/notification.service'
 
 @Injectable()
 export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly redisService: RedisService,
     private readonly notificationService: NotificationService,
   ) {}
 
@@ -78,7 +80,6 @@ export class AdminService {
       },
     })
 
-    // Notify THE AUTHOR that their story was approved
     await this.notificationService.createNotification({
       userId: story.authorId,
       type: 'ADMIN',
@@ -87,7 +88,6 @@ export class AdminService {
       link: `/stories/${story.id}`,
     })
 
-    // Send notifications to followers
     await this.notificationService.notifyAuthorFollowers(
       story.authorId,
       story.author.displayName || 'Tác giả',
@@ -155,7 +155,6 @@ export class AdminService {
       },
     })
 
-    // Send notification to author
     await this.notificationService.createNotification({
       userId: tx.wallet.userId,
       type: 'ADMIN',
@@ -175,9 +174,8 @@ export class AdminService {
     if (!tx) throw new NotFoundException('Giao dịch không tồn tại')
     if (tx.status !== 'PENDING') throw new NotFoundException('Giao dịch không ở trạng thái chờ')
 
-    const xuToRefund = Math.abs(tx.amount) // Amount is negative in DB
+    const xuToRefund = Math.abs(tx.amount)
 
-    // Refund xu to wallet
     const updatedWallet = await this.prisma.wallet.update({
       where: { id: tx.walletId },
       data: {
@@ -186,11 +184,10 @@ export class AdminService {
       },
     })
 
-    // Create a new REFUND transaction
     await this.prisma.transaction.create({
       data: {
         walletId: tx.walletId,
-        type: 'DEPOSIT', // using DEPOSIT for refund
+        type: 'DEPOSIT',
         amount: xuToRefund,
         balance: updatedWallet.balance,
         description: `Hoàn tiền yêu cầu rút xu thất bại (${xuToRefund} xu)`,
@@ -206,7 +203,6 @@ export class AdminService {
       },
     })
 
-    // Send notification to author
     await this.notificationService.createNotification({
       userId: tx.wallet.userId,
       type: 'ADMIN',
@@ -216,5 +212,93 @@ export class AdminService {
     })
 
     return result
+  }
+
+  // ==================== Genre CRUD ====================
+
+  async getGenres() {
+    return this.prisma.genre.findMany({
+      orderBy: { name: 'asc' },
+      include: { _count: { select: { stories: true } } },
+    })
+  }
+
+  async createGenre(name: string, slug: string) {
+    const existing = await this.prisma.genre.findFirst({
+      where: { OR: [{ name }, { slug }] },
+    })
+    if (existing) throw new ConflictException('Thể loại đã tồn tại')
+
+    const genre = await this.prisma.genre.create({ data: { name, slug } })
+    await this.redisService.del('genres:all')
+    return genre
+  }
+
+  async updateGenre(id: string, name?: string, slug?: string) {
+    const genre = await this.prisma.genre.findUnique({ where: { id } })
+    if (!genre) throw new NotFoundException('Thể loại không tồn tại')
+
+    const updated = await this.prisma.genre.update({
+      where: { id },
+      data: {
+        ...(name && { name }),
+        ...(slug && { slug }),
+      },
+    })
+    await this.redisService.del('genres:all')
+    return updated
+  }
+
+  async deleteGenre(id: string) {
+    const genre = await this.prisma.genre.findUnique({ where: { id } })
+    if (!genre) throw new NotFoundException('Thể loại không tồn tại')
+
+    await this.prisma.genre.delete({ where: { id } })
+    await this.redisService.del('genres:all')
+    return { message: 'Xóa thể loại thành công' }
+  }
+
+  // ==================== Tag CRUD ====================
+
+  async getTags() {
+    return this.prisma.tag.findMany({
+      orderBy: { name: 'asc' },
+      include: { _count: { select: { stories: true } } },
+    })
+  }
+
+  async createTag(name: string, slug: string) {
+    const existing = await this.prisma.tag.findFirst({
+      where: { OR: [{ name }, { slug }] },
+    })
+    if (existing) throw new ConflictException('Tag đã tồn tại')
+
+    const tag = await this.prisma.tag.create({ data: { name, slug } })
+    await this.redisService.del('tags:all')
+    return tag
+  }
+
+  async updateTag(id: string, name?: string, slug?: string) {
+    const tag = await this.prisma.tag.findUnique({ where: { id } })
+    if (!tag) throw new NotFoundException('Tag không tồn tại')
+
+    const updated = await this.prisma.tag.update({
+      where: { id },
+      data: {
+        ...(name && { name }),
+        ...(slug && { slug }),
+      },
+    })
+    await this.redisService.del('tags:all')
+    return updated
+  }
+
+  async deleteTag(id: string) {
+    const tag = await this.prisma.tag.findUnique({ where: { id } })
+    if (!tag) throw new NotFoundException('Tag không tồn tại')
+
+    await this.prisma.tag.delete({ where: { id } })
+    await this.redisService.del('tags:all')
+    return { message: 'Xóa tag thành công' }
   }
 }

@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from 'src/shared/services/prisma.service'
+import { RedisService } from 'src/shared/services/redis.service'
 import { CreateChapterBodyType, UpdateChapterBodyType } from './chapter.dto/chapter.dto'
 import { NotificationService } from '../notification/notification.service'
 import { WalletService } from '../wallet/wallet.service'
@@ -8,6 +9,7 @@ import { WalletService } from '../wallet/wallet.service'
 export class ChapterService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly redisService: RedisService,
     private readonly notificationService: NotificationService,
     private readonly walletService: WalletService,
   ) {}
@@ -40,6 +42,9 @@ export class ChapterService {
       await this.notificationService.notifyFollowersNewChapter(authorId, storyId, story.title, chapter.chapterNumber)
     }
 
+    // Invalidate chapter list cache
+    await this.redisService.delByPattern(`chapters:story:${storyId}*`)
+
     return chapter
   }
 
@@ -66,7 +71,11 @@ export class ChapterService {
     const story = await this.prisma.story.findUnique({ where: { id: storyId } })
     if (!story) throw new NotFoundException('Truyện không tồn tại')
 
-    return this.prisma.chapter.findMany({
+    const cacheKey = `chapters:story:${storyId}`
+    const cached = await this.redisService.get(cacheKey)
+    if (cached) return cached
+
+    const chapters = await this.prisma.chapter.findMany({
       where: { storyId },
       orderBy: { chapterNumber: 'asc' },
       select: {
@@ -83,6 +92,9 @@ export class ChapterService {
         updatedAt: true,
       },
     })
+
+    await this.redisService.set(cacheKey, chapters, 300) // 5 min
+    return chapters
   }
 
   async findOne(storyId: string, chapterNumber: number, skipView = false, userId?: string) {
@@ -177,6 +189,9 @@ export class ChapterService {
         )
       }
     }
+
+    // Invalidate chapter cache
+    await this.redisService.delByPattern(`chapters:story:${storyId}*`)
 
     return updated
   }
