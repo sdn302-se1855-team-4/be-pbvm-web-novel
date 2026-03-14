@@ -1,87 +1,42 @@
-import { plainToInstance } from 'class-transformer'
-import { IsNotEmpty, IsString, validateSync } from 'class-validator'
-import * as fs from 'fs'
-import path from 'path'
-import { config as dotenvConfig } from 'dotenv'
+import { z } from 'zod'
 
-dotenvConfig({ path: '.env' })
+const envSchema = z.object({
+  DATABASE_URL: z.string().url(),
 
-//kiểm tra .env tồn tại hay chưa
-if (!fs.existsSync(path.resolve('.env'))) {
-  console.log('không tìm thấy file .env')
-  process.exit(1)
-}
+  ACCESS_TOKEN_SECRET: z.string(),
+  ACCESS_TOKEN_EXPIRES_IN: z.string(),
+  REFRESH_TOKEN_SECRET: z.string(),
+  REFRESH_TOKEN_EXPIRES_IN: z.string(),
 
-class ConfigSchema {
-  @IsString()
-  @IsNotEmpty()
-  DATABASE_URL: string
+  SECRET_API_KEY: z.string(),
 
-  @IsString()
-  ACCESS_TOKEN_SECRET: string
+  PAYOS_CLIENT_ID: z.string(),
+  PAYOS_API_KEY: z.string(),
+  PAYOS_CHECKSUM_KEY: z.string(),
 
-  @IsString()
-  ACCESS_TOKEN_EXPIRES_IN: string
+  UPTASH_REDIS_HOST: z.string(),
+  UPTASH_REDIS_PASSWORD: z.string(),
+  UPTASH_REDIS_PORT: z.string(),
+  UPTASH_REDIS_USER: z.string(),
+  UPTASH_REDIS_TLS: z.string(),
 
-  @IsString()
-  REFRESH_TOKEN_SECRET: string
+  FIREBASE_PROJECT_ID: z.string(),
+  FIREBASE_CLIENT_EMAIL: z.string(),
+  FIREBASE_PRIVATE_KEY: z.string().transform((key) => key.replace(/\\n/g, '\n')),
 
-  @IsString()
-  REFRESH_TOKEN_EXPIRES_IN: string
+  PORT: z.string().optional().default('3000'),
+})
 
-  @IsString()
-  SECRET_API_KEY: string
-
-  @IsString()
-  PAYOS_CLIENT_ID: string
-
-  @IsString()
-  PAYOS_API_KEY: string
-
-  @IsString()
-  PAYOS_CHECKSUM_KEY: string
-
-  @IsString()
-  UPTASH_REDIS_HOST: string
-
-  @IsString()
-  UPTASH_REDIS_PASSWORD: string
-
-  @IsString()
-  UPTASH_REDIS_PORT: string
-
-  @IsString()
-  UPTASH_REDIS_USER: string
-
-  @IsString()
-  UPTASH_REDIS_TLS: string
-
-  @IsString()
-  FIREBASE_PROJECT_ID: string
-
-  @IsString()
-  FIREBASE_CLIENT_EMAIL: string
-
-  @IsString()
-  FIREBASE_PRIVATE_KEY: string
-}
+export type EnvConfig = z.infer<typeof envSchema>
 
 export function validate(config: Record<string, unknown>) {
-  const validatedConfig = plainToInstance(ConfigSchema, config, {
-    enableImplicitConversion: true,
-  })
-  const errors = validateSync(validatedConfig, { skipMissingProperties: false })
+  const result = envSchema.safeParse(config)
 
-  if (errors.length > 0) {
-    const errorMessages = errors.map((e) => {
-      return {
-        property: e.property,
-        constraints: e.constraints,
-        value: e.value,
-      }
-    })
-    console.error('Environment variables validation failed:', JSON.stringify(errorMessages, null, 2))
+  if (!result.success) {
+    console.error('❌ Invalid environment variables:')
+    console.error(JSON.stringify(result.error.flatten().fieldErrors, null, 2))
     throw new Error('Environment variables validation failed')
   }
-  return validatedConfig
+
+  return result.data
 }

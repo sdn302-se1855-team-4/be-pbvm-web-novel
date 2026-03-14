@@ -32,6 +32,7 @@ import { ScheduleModule } from '@nestjs/schedule'
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: '.env',
       load: [authConfig, databaseConfig, firebaseConfig, payosConfig, redisConfig],
       validate,
     }),
