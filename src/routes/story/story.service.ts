@@ -153,6 +153,58 @@ export class StoryService {
     return story
   }
 
+  async findOneBySlug(slug: string, skipView = false) {
+    // Check cache first
+    const cacheKey = `story:slug:${slug}`
+    const cached = await this.redisService.get(cacheKey)
+    if (cached) {
+      // Still increment view count even from cache
+      if (!skipView) {
+        await this.prisma.story.update({
+          where: { id: (cached as { id: string }).id },
+          data: { viewCount: { increment: 1 } },
+        })
+      }
+      return cached
+    }
+
+    const story = await this.prisma.story.findUnique({
+      where: { slug },
+      include: {
+        author: { select: { id: true, username: true, displayName: true, avatar: true, bio: true } },
+        genres: { include: { genre: true } },
+        tags: { include: { tag: true } },
+        chapters: {
+          where: { isPublished: true },
+          orderBy: { chapterNumber: 'asc' },
+          select: {
+            id: true,
+            title: true,
+            chapterNumber: true,
+            slug: true,
+            wordCount: true,
+            viewCount: true,
+            createdAt: true,
+            isPremium: true,
+          },
+        },
+        _count: { select: { chapters: true, comments: true, reviews: true, bookmarks: true } },
+      },
+    })
+    if (!story) throw new NotFoundException('Truyện không tồn tại')
+
+    // Increment view count
+    if (!skipView) {
+      await this.prisma.story.update({
+        where: { id: story.id },
+        data: { viewCount: { increment: 1 } },
+      })
+    }
+
+    await this.redisService.set(cacheKey, story, 600) // 10 min
+    return story
+  }
+
   async update(id: string, userId: string, userRole: string, body: UpdateStoryBodyType) {
     const story = await this.prisma.story.findUnique({ where: { id } })
     if (!story) throw new NotFoundException('Truyện không tồn tại')

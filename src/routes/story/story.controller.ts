@@ -48,6 +48,12 @@ export class StoryController {
     return this.storyService.getMyStories(user.userId, query)
   }
 
+  @Get('slug/:slug')
+  @ResponseMessage('Lấy chi tiết truyện theo slug thành công')
+  findOneBySlug(@Param('slug') slug: string, @Query('skipView') skipView?: string) {
+    return this.storyService.findOneBySlug(slug, skipView === 'true')
+  }
+
   @Get(':id')
   @ResponseMessage('Lấy chi tiết truyện thành công')
   findOne(@Param('id') id: string, @Query('skipView') skipView?: string) {
