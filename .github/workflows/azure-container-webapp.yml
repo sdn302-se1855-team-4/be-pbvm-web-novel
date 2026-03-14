@@ -2,7 +2,7 @@ name: CI/CD PBVM-WEB
 
 on:
   push:
-    branches: [ "dev" ] # Chạy khi bạn push vào nhánh main
+    branches: [ "develop" ] # Chạy khi bạn push vào nhánh main
 
 jobs:
   build-and-deploy:
