@@ -14,14 +14,20 @@ export class LoggingInterceptor implements NestInterceptor {
     const controller = context.getClass().name
     const handler = context.getHandler().name
     const ip = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.ip
-    console.log(`[REQ] ${method} ${url} | ip=${ip} → ${controller}.${handler}()`)
 
     return next.handle().pipe(
       tap(() => {
-        console.log(`[RES] ${method} ${url} ${res.statusCode} | ip=${ip} -> ${Date.now() - now}ms`)
+        const duration = Date.now() - now
+        console.log(
+          `[HTTP] ${res.statusCode} | ${method} ${url} | ${duration}ms | ip=${ip} → ${controller}.${handler}()`,
+        )
       }),
       catchError((err) => {
-        console.error(`[ERR] ${method} ${url} ${res.statusCode} | ip=${ip} -> ${Date.now() - now}ms`, err)
+        const duration = Date.now() - now
+        console.error(
+          `[ERR] ${res.statusCode} | ${method} ${url} | ${duration}ms | ip=${ip} → ${controller}.${handler}()`,
+          err,
+        )
         return throwError(() => err as Error)
       }),
     )

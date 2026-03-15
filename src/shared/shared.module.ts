@@ -5,6 +5,7 @@ import { HashingService } from './services/hashing.service'
 import { PrismaService } from './services/prisma.service'
 import { RedisService } from './services/redis.service'
 import { FirebaseService } from './services/firebase.service'
+import { CloudinaryService } from './services/cloudinary.service'
 import { AccessAuthGuard } from './guards/access-auth.guard'
 import { JwtModule } from '@nestjs/jwt'
 import { RefreshAuthGuard } from './guards/refresh-auth.guard'
@@ -17,6 +18,7 @@ import { RefreshAuthGuard } from './guards/refresh-auth.guard'
     HashingService,
     RedisService,
     FirebaseService,
+    CloudinaryService,
     AccessAuthGuard,
     RefreshAuthGuard,
   ],
@@ -26,6 +28,7 @@ import { RefreshAuthGuard } from './guards/refresh-auth.guard'
     HashingService,
     RedisService,
     FirebaseService,
+    CloudinaryService,
     AccessAuthGuard,
     RefreshAuthGuard,
   ],

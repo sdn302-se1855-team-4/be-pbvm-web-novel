@@ -27,6 +27,7 @@ import { ReviewModule } from './routes/review/review.module'
 import { NotificationModule } from './routes/notification/notification.module'
 import { ProfileModule } from './routes/profile/profile.module'
 import { ScheduleModule } from '@nestjs/schedule'
+import { UploadModule } from './routes/upload/upload.module'
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { ScheduleModule } from '@nestjs/schedule'
     ReviewModule,
     NotificationModule,
     ProfileModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_PIPE, useClass: CustomZodValidationPipe }],
