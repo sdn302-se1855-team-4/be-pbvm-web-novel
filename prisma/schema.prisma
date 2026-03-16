@@ -35,6 +35,7 @@ model User {
   stories           Story[]
   wallet            Wallet?
   fcmTokens         FcmToken[]
+  commentLikes      CommentLike[]
 
   @@index([email])
   @@index([username])
@@ -209,12 +210,26 @@ model Comment {
   updatedAt DateTime  @updatedAt
   parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies   Comment[] @relation("CommentReplies")
+  likes     CommentLike[]
   story     Story     @relation(fields: [storyId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([storyId])
   @@index([parentId])
+}
+
+model CommentLike {
+  id        String   @id @default(cuid())
+  commentId String
+  userId    String
+  createdAt DateTime @default(now())
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@index([commentId])
+  @@index([userId])
 }
 
 model Review {
