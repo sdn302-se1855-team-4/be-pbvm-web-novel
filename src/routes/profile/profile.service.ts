@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from 'src/shared/services/prisma.service'
+import { UpdateProfileType } from './profile.dto'
 
 @Injectable()
 export class ProfileService {
@@ -40,5 +41,46 @@ export class ProfileService {
     })
 
     return { ...user, stories }
+  }
+
+  async getOwnProfile(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        displayName: true,
+        avatar: true,
+        bio: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: {
+          select: {
+            stories: true,
+            following: true,
+            followers: true,
+            bookmarks: true,
+          },
+        },
+      },
+    })
+    if (!user) throw new NotFoundException('Người dùng không tồn tại')
+    return user
+  }
+
+  async updateProfile(userId: string, data: UpdateProfileType) {
+    return await this.prisma.user.update({
+      where: { id: userId },
+      data,
+    })
+  }
+
+  async updateAvatar(userId: string, avatarUrl: string) {
+    return await this.prisma.user.update({
+      where: { id: userId },
+      data: { avatar: avatarUrl },
+    })
   }
 }
