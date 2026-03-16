@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
+import { Role } from '@prisma/client'
 import { AdminService } from './admin.service'
 import { AccessAuthGuard } from 'src/shared/guards/access-auth.guard'
 import { RolesGuard } from 'src/shared/guards/roles.guard'
@@ -112,5 +113,39 @@ export class AdminController {
   @ResponseMessage('Xóa tag thành công')
   deleteTag(@Param('id') id: string) {
     return this.adminService.deleteTag(id)
+  }
+
+  // ==================== Analytics V2 = [NEW] ====================
+
+  @Get('stats/extended')
+  @ResponseMessage('Lấy thống kê chi tiết thành công')
+  getExtendedStats() {
+    return this.adminService.getExtendedStats()
+  }
+
+  @Get('stats/role-distribution')
+  @ResponseMessage('Lấy phân bổ vai trò thành công')
+  getRoleDistribution() {
+    return this.adminService.getRoleDistribution()
+  }
+
+  @Get('stats/content-types')
+  @ResponseMessage('Lấy thống kê loại nội dung thành công')
+  getContentTypeStats() {
+    return this.adminService.getContentTypeStats()
+  }
+
+  // ==================== User Management [NEW] ====================
+
+  @Put('users/:id/role')
+  @ResponseMessage('Cập nhật vai trò người dùng thành công')
+  updateUserRole(@Param('id') id: string, @Body() body: { role: Role }) {
+    return this.adminService.updateUserRole(id, body.role)
+  }
+
+  @Put('users/:id/block')
+  @ResponseMessage('Khóa/mở khóa tài khoản thành công')
+  blockUser(@Param('id') id: string, @Body() body: { isBlocked: boolean; reason?: string }) {
+    return this.adminService.blockUser(id, body.isBlocked, body.reason)
   }
 }

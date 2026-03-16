@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common'
+import { Role } from '@prisma/client'
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { RedisService } from 'src/shared/services/redis.service'
 import { NotificationService } from '../notification/notification.service'
@@ -300,5 +301,137 @@ export class AdminService {
     await this.prisma.tag.delete({ where: { id } })
     await this.redisService.del('tags:all')
     return { message: 'Xóa tag thành công' }
+  }
+
+  // ==================== User Management ====================
+
+  async updateUserRole(id: string, role: Role) {
+    const user = await this.prisma.user.findUnique({ where: { id } })
+    if (!user) throw new NotFoundException('Người dùng không tồn tại')
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { role },
+    })
+  }
+
+  async blockUser(id: string, isBlocked: boolean, reason?: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } })
+    if (!user) throw new NotFoundException('Người dùng không tồn tại')
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { isBlocked, blockReason: reason },
+    })
+  }
+
+  // ==================== Analytics V2 ====================
+
+  async getExtendedStats() {
+    const cacheKey = 'admin:stats:extended'
+    const cached = await this.redisService.get(cacheKey)
+    if (cached) return cached
+
+    const now = new Date()
+    const monthlyData: {
+      name: string
+      users: number
+      stories: number
+      revenue: number
+      chapters: number
+    }[] = []
+
+    // Get data for last 6 months
+    for (let i = 5; i >= 0; i--) {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59, 999)
+
+      const [users, stories, chapters, revenue] = await Promise.all([
+        this.prisma.user.count({ where: { createdAt: { gte: startOfMonth, lte: endOfMonth } } }),
+        this.prisma.story.count({ where: { createdAt: { gte: startOfMonth, lte: endOfMonth } } }),
+        this.prisma.chapter.count({ where: { createdAt: { gte: startOfMonth, lte: endOfMonth } } }),
+        this.prisma.transaction.aggregate({
+          where: {
+            type: 'DEPOSIT',
+            status: 'COMPLETED',
+            createdAt: { gte: startOfMonth, lte: endOfMonth },
+          },
+          _sum: { amount: true },
+        }),
+      ])
+
+      monthlyData.push({
+        name: `T${startOfMonth.getMonth() + 1}`,
+        users,
+        stories,
+        revenue: revenue._sum.amount || 0,
+        chapters,
+      })
+    }
+
+    const currentMonth = monthlyData[5]
+    const lastMonth = monthlyData[4]
+
+    const calculateGrowth = (curr: number, prev: number) => {
+      if (prev === 0) return curr > 0 ? 100 : 0
+      return parseFloat((((curr - prev) / prev) * 100).toFixed(1))
+    }
+
+    const result = {
+      summary: {
+        userGrowth: calculateGrowth(currentMonth.users, lastMonth.users),
+        storyGrowth: calculateGrowth(currentMonth.stories, lastMonth.stories),
+        chapterGrowth: calculateGrowth(currentMonth.chapters, lastMonth.chapters),
+        revenueGrowth: calculateGrowth(currentMonth.revenue, lastMonth.revenue),
+      },
+      monthlyData,
+    }
+
+    await this.redisService.set(cacheKey, result, 900) // 15 mins
+    return result
+  }
+
+  async getRoleDistribution() {
+    const cacheKey = 'admin:stats:roles'
+    const cached = await this.redisService.get(cacheKey)
+    if (cached) return cached
+
+    const roles = await this.prisma.user.groupBy({
+      by: ['role'],
+      _count: { _all: true },
+    })
+
+    const roleMap = {
+      READER: 'Độc giả',
+      WRITER: 'Tác giả',
+      ADMIN: 'Admin',
+    }
+
+    const result = roles.map((r) => ({
+      name: roleMap[r.role] || r.role,
+      value: r._count._all,
+    }))
+
+    await this.redisService.set(cacheKey, result, 900)
+    return result
+  }
+
+  async getContentTypeStats() {
+    const cacheKey = 'admin:stats:content-types'
+    const cached = await this.redisService.get(cacheKey)
+    if (cached) return cached
+
+    const types = await this.prisma.story.groupBy({
+      by: ['type'],
+      _count: { _all: true },
+    })
+
+    const result = types.map((t) => ({
+      name: t.type,
+      count: t._count._all,
+    }))
+
+    await this.redisService.set(cacheKey, result, 900)
+    return result
   }
 }
