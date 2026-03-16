@@ -56,11 +56,11 @@ export class CommentService {
 
     const formattedComments = comments.map((c) => ({
       ...c,
-      isLiked: c.likes.length > 0,
+      isLiked: (c.likes?.length ?? 0) > 0,
       likesCount: c._count.likes,
       replies: c.replies.map((r) => ({
         ...r,
-        isLiked: r.likes.length > 0,
+        isLiked: (r.likes?.length ?? 0) > 0,
         likesCount: r._count.likes,
       })),
     }))
