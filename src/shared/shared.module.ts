@@ -9,6 +9,7 @@ import { CloudinaryService } from './services/cloudinary.service'
 import { AccessAuthGuard } from './guards/access-auth.guard'
 import { JwtModule } from '@nestjs/jwt'
 import { RefreshAuthGuard } from './guards/refresh-auth.guard'
+import { MailService } from './services/mail.service'
 
 @Global()
 @Module({
@@ -19,6 +20,7 @@ import { RefreshAuthGuard } from './guards/refresh-auth.guard'
     RedisService,
     FirebaseService,
     CloudinaryService,
+    MailService,
     AccessAuthGuard,
     RefreshAuthGuard,
   ],
@@ -29,6 +31,7 @@ import { RefreshAuthGuard } from './guards/refresh-auth.guard'
     RedisService,
     FirebaseService,
     CloudinaryService,
+    MailService,
     AccessAuthGuard,
     RefreshAuthGuard,
   ],

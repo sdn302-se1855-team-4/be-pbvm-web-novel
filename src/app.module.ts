@@ -11,6 +11,7 @@ import databaseConfig from './shared/config/database.config'
 import firebaseConfig from './shared/config/firebase.config'
 import payosConfig from './shared/config/payos.config'
 import redisConfig from './shared/config/redis.config'
+import mailConfig from './shared/config/mail.config'
 
 import { AuthModule } from './routes/auth/auth.module'
 import { StoryModule } from './routes/story/story.module'
@@ -37,7 +38,7 @@ import { BullModule } from '@nestjs/bullmq'
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
-      load: [authConfig, databaseConfig, firebaseConfig, payosConfig, redisConfig],
+      load: [authConfig, databaseConfig, firebaseConfig, payosConfig, redisConfig, mailConfig],
       validate,
     }),
     BullModule.forRootAsync({
