@@ -4,6 +4,8 @@ import { Subject } from 'rxjs'
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { FirebaseService } from 'src/shared/services/firebase.service'
 import { Notification } from '@prisma/client'
+import { InjectQueue } from '@nestjs/bullmq'
+import { Queue } from 'bullmq'
 
 @Injectable()
 export class NotificationService {
@@ -13,6 +15,7 @@ export class NotificationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly firebaseService: FirebaseService,
+    @InjectQueue('notifications') private readonly notificationQueue: Queue,
   ) {}
 
   async getNotifications(userId: string, page = 1, limit = 20) {
@@ -50,8 +53,19 @@ export class NotificationService {
     return { message: 'Đã đánh dấu tất cả đã đọc' }
   }
 
-  // Helper to create notifications from other services
+  // Create notification via background job
   async createNotification(data: {
+    userId: string
+    type: 'NEW_CHAPTER' | 'NEW_COMMENT' | 'NEW_REVIEW' | 'NEW_FOLLOWER' | 'DONATION_RECEIVED' | 'SYSTEM' | 'ADMIN'
+    title: string
+    message: string
+    link?: string
+  }) {
+    await this.notificationQueue.add('send-notification', data)
+  }
+
+  // Actual processing (Internal use by Consumer)
+  async processCreateNotification(data: {
     userId: string
     type: 'NEW_CHAPTER' | 'NEW_COMMENT' | 'NEW_REVIEW' | 'NEW_FOLLOWER' | 'DONATION_RECEIVED' | 'SYSTEM' | 'ADMIN'
     title: string
@@ -60,15 +74,15 @@ export class NotificationService {
   }) {
     const notification = await this.prisma.notification.create({ data })
 
-    // Broadcast via SSE
+    // Broadcast via SSE (Real-time update)
     this.notification$.next({ userId: data.userId, notification })
 
     // Send via FCM
-    this.sendPushNotification(data.userId, data.title, data.message, {
+    await this.sendPushNotification(data.userId, data.title, data.message, {
       link: data.link || '',
       type: data.type,
       notificationId: notification.id,
-    }).catch((err) => this.logger.error('Failed to send push notification', err))
+    })
 
     return notification
   }
@@ -82,7 +96,11 @@ export class NotificationService {
     if (tokens.length === 0) return
 
     const tokenStrings = tokens.map((t) => t.token)
-    await this.firebaseService.sendPushNotification(tokenStrings, title, body, data)
+    try {
+      await this.firebaseService.sendPushNotification(tokenStrings, title, body, data)
+    } catch (error) {
+      this.logger.error(`Failed to send push notification to user ${userId}`, error)
+    }
   }
 
   async registerFcmToken(userId: string, token: string, device?: string) {
@@ -104,44 +122,72 @@ export class NotificationService {
   }
 
   async notifyAuthorFollowers(authorId: string, authorDisplayName: string, storyId: string, storyTitle: string) {
+    await this.notificationQueue.add('notify-author-followers', {
+      authorId,
+      authorDisplayName,
+      storyId,
+      storyTitle,
+    })
+  }
+
+  async processNotifyAuthorFollowers(data: {
+    authorId: string
+    authorDisplayName: string
+    storyId: string
+    storyTitle: string
+  }) {
     const followers = await this.prisma.follow.findMany({
-      where: { followingId: authorId },
+      where: { followingId: data.authorId },
       select: { followerId: true },
     })
 
     await Promise.all(
       followers.map((f) =>
-        this.createNotification({
+        this.processCreateNotification({
           userId: f.followerId,
           type: 'SYSTEM',
           title: 'Tác giả bạn theo dõi ra truyện mới',
-          message: `${authorDisplayName} vừa ra mắt bộ truyện mới: ${storyTitle}`,
-          link: `/stories/${storyId}`,
+          message: `${data.authorDisplayName} vừa ra mắt bộ truyện mới: ${data.storyTitle}`,
+          link: `/stories/${data.storyId}`,
         }),
       ),
     )
   }
 
   async notifyFollowersNewChapter(authorId: string, storyId: string, storyTitle: string, chapterNumber: number) {
+    await this.notificationQueue.add('notify-followers-new-chapter', {
+      authorId,
+      storyId,
+      storyTitle,
+      chapterNumber,
+    })
+  }
+
+  async processNotifyFollowersNewChapter(data: {
+    authorId: string
+    storyId: string
+    storyTitle: string
+    chapterNumber: number
+  }) {
     const author = await this.prisma.user.findUnique({
-      where: { id: authorId },
+      where: { id: data.authorId },
       select: { displayName: true, username: true },
     })
     const authorName = author?.displayName || author?.username || 'Tác giả'
 
     const followers = await this.prisma.follow.findMany({
-      where: { followingId: authorId },
+      where: { followingId: data.authorId },
       select: { followerId: true },
     })
 
     await Promise.all(
       followers.map((f) =>
-        this.createNotification({
+        this.processCreateNotification({
           userId: f.followerId,
           type: 'NEW_CHAPTER',
           title: 'Chương mới từ tác giả bạn theo dõi',
-          message: `${authorName} vừa đăng Chương ${chapterNumber} của bộ truyện "${storyTitle}".`,
-          link: `/stories/${storyId}/chapters/${chapterNumber}`,
+          message: `${authorName} vừa đăng Chương ${data.chapterNumber} của bộ truyện "${data.storyTitle}".`,
+          link: `/stories/${data.storyId}/chapters/${data.chapterNumber}`,
         }),
       ),
     )

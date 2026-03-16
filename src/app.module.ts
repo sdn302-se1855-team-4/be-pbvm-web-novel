@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
-import { ConfigModule } from '@nestjs/config'
+import { ConfigModule, ConfigService } from '@nestjs/config'
+import { RedisConfig } from './shared/config/redis.config'
 import { AppController } from './app.controller'
 import { AppService } from './app.service'
 import { SharedModule } from './shared/shared.module'
@@ -29,6 +30,8 @@ import { ProfileModule } from './routes/profile/profile.module'
 import { ScheduleModule } from '@nestjs/schedule'
 import { UploadModule } from './routes/upload/upload.module'
 
+import { BullModule } from '@nestjs/bullmq'
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -36,6 +39,21 @@ import { UploadModule } from './routes/upload/upload.module'
       envFilePath: '.env',
       load: [authConfig, databaseConfig, firebaseConfig, payosConfig, redisConfig],
       validate,
+    }),
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const redisConfig = configService.get<RedisConfig>('redis')
+        return {
+          connection: {
+            host: redisConfig?.host,
+            port: redisConfig?.port,
+            username: redisConfig?.username,
+            password: redisConfig?.password,
+            tls: redisConfig?.tls ? {} : undefined,
+          },
+        }
+      },
     }),
     ScheduleModule.forRoot(),
     SharedModule,
