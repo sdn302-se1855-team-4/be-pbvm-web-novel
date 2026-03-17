@@ -188,18 +188,37 @@ export class AuthService {
         })
       }
     } else {
-      // 3. Create new user
-      const username = email.split('@')[0] + '_' + uid.slice(0, 6)
+      // 3. Create new user with generated credentials
+      const username = email.split('@')[0]
+      // Ensure username is unique by checking or adding a suffix if needed
+      let finalUsername = username
+      const existingUserByUsername = await this.prisma.user.findUnique({ where: { username } })
+      if (existingUserByUsername) {
+        finalUsername = `${username}_${uid.slice(0, 4)}`
+      }
+
+      const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4)
+      const passwordHash = await this.hashingService.hash(tempPassword)
+
       user = await this.prisma.user.create({
         data: {
           email,
-          username,
+          username: finalUsername,
+          passwordHash,
           googleId: uid,
           displayName: name || email.split('@')[0],
           avatar: picture || null,
           emailVerified: new Date(),
           lastLoginAt: new Date(),
         },
+      })
+
+      // Queue email with credentials
+      await this.mailQueue.add(MAIL_JOBS.SEND_GOOGLE_WELCOME_CREDENTIALS, {
+        email,
+        username: finalUsername,
+        password: tempPassword,
+        displayName: user.displayName,
       })
     }
 

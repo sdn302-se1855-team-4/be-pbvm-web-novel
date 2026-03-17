@@ -267,8 +267,15 @@ export class AdminService {
   }
 
   async deleteGenre(id: string) {
-    const genre = await this.prisma.genre.findUnique({ where: { id } })
+    const genre = await this.prisma.genre.findUnique({
+      where: { id },
+      include: { _count: { select: { stories: true } } },
+    })
     if (!genre) throw new NotFoundException('Thể loại không tồn tại')
+
+    if (genre._count.stories > 0) {
+      throw new ConflictException('Không thể xóa thể loại đang có truyện sử dụng')
+    }
 
     await this.prisma.genre.delete({ where: { id } })
     await this.redisService.del('genres:all')
@@ -311,8 +318,15 @@ export class AdminService {
   }
 
   async deleteTag(id: string) {
-    const tag = await this.prisma.tag.findUnique({ where: { id } })
+    const tag = await this.prisma.tag.findUnique({
+      where: { id },
+      include: { _count: { select: { stories: true } } },
+    })
     if (!tag) throw new NotFoundException('Tag không tồn tại')
+
+    if (tag._count.stories > 0) {
+      throw new ConflictException('Không thể xóa tag đang có truyện sử dụng')
+    }
 
     await this.prisma.tag.delete({ where: { id } })
     await this.redisService.del('tags:all')

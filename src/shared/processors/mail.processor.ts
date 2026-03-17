@@ -22,6 +22,10 @@ export class MailProcessor extends WorkerHost {
         return this.handleStoryRejection(
           job.data as { email: string; authorName: string; storyTitle: string; reason?: string },
         )
+      case MAIL_JOBS.SEND_GOOGLE_WELCOME_CREDENTIALS:
+        return this.handleGoogleWelcomeCredentials(
+          job.data as { email: string; username: string; password: string; displayName: string },
+        )
       default:
         this.logger.warn(`Unknown job type: ${job.name}`)
     }
@@ -58,6 +62,34 @@ export class MailProcessor extends WorkerHost {
           <p>Bạn có thể chỉnh sửa nội dung và gửi lại yêu cầu phê duyệt sau khi đã khắc phục các vấn đề nêu trên.</p>
           <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
           <p style="color: #888; font-size: 12px;">Chapter One Team</p>
+        </div>
+      `,
+    })
+  }
+
+  private async handleGoogleWelcomeCredentials(data: {
+    email: string
+    username: string
+    password: string
+    displayName: string
+  }) {
+    await this.mailService.sendMail({
+      to: data.email,
+      subject: 'Chào mừng bạn đến với Chapter One - Thông tin đăng nhập của bạn',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <h2 style="color: #333; text-align: center;">Chào mừng bạn đến với Chapter One!</h2>
+          <p>Xin chào <strong>${data.displayName}</strong>,</p>
+          <p>Cảm ơn bạn đã sử dụng Google để đăng nhập vào Chapter One. Chúng tôi đã tự động khởi tạo tài khoản và mật khẩu cho bạn để bạn có thể đăng nhập bằng phương thức thông thường nếu muốn:</p>
+          
+          <div style="background-color: #f9f9f9; padding: 20px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 5px 0;"><strong>Username:</strong> ${data.username}</p>
+            <p style="margin: 5px 0;"><strong>Password:</strong> <span style="font-family: monospace; font-size: 18px; color: #d32f2f;">${data.password}</span></p>
+          </div>
+          
+          <p>Bạn nên đổi mật khẩu sau khi đăng nhập lần đầu để đảm bảo an toàn cho tài khoản.</p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
+          <p style="color: #888; font-size: 12px;">Chapter One Team - Đưa thế giới truyện đến gần bạn hơn.</p>
         </div>
       `,
     })
