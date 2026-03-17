@@ -45,6 +45,36 @@ export class AdminController {
     return this.adminService.rejectStory(id)
   }
 
+  @Delete('stories/:id')
+  @ResponseMessage('Xóa truyện vĩnh viễn thành công')
+  deleteStory(@Param('id') id: string) {
+    return this.adminService.deleteStory(id)
+  }
+
+  @Get('stories/:id/chapters')
+  @ResponseMessage('Lấy danh sách chương của truyện thành công')
+  getStoryChapters(@Param('id') id: string) {
+    return this.adminService.getStoryChapters(id)
+  }
+
+  @Put('chapters/:id/approve')
+  @ResponseMessage('Duyệt chương thành công')
+  approveChapter(@Param('id') id: string) {
+    return this.adminService.approveChapter(id)
+  }
+
+  @Put('chapters/:id/reject')
+  @ResponseMessage('Gỡ chương thành công')
+  rejectChapter(@Param('id') id: string) {
+    return this.adminService.rejectChapter(id)
+  }
+
+  @Delete('chapters/:id')
+  @ResponseMessage('Xóa chương vĩnh viễn thành công')
+  deleteChapter(@Param('id') id: string) {
+    return this.adminService.deleteChapter(id)
+  }
+
   @Get('withdrawals')
   @ResponseMessage('Lấy danh sách yêu cầu rút tiền thành công')
   getWithdrawals() {

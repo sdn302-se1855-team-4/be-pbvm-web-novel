@@ -100,6 +100,11 @@ export class AdminService {
       story.title,
     )
 
+    // Invalidate caches
+    await this.redisService.del(`story:${id}`)
+    await this.redisService.del(`story:slug:${story.slug}`)
+    await this.redisService.delByPattern('stories:*')
+
     return updatedStory
   }
 
@@ -125,7 +130,118 @@ export class AdminService {
       storyTitle: story.title,
     })
 
+    // Invalidate caches
+    await this.redisService.del(`story:${id}`)
+    await this.redisService.del(`story:slug:${story.slug}`)
+    await this.redisService.delByPattern('stories:*')
+
     return updated
+  }
+
+  async deleteStory(id: string) {
+    const story = await this.prisma.story.findUnique({ where: { id } })
+    if (!story) throw new NotFoundException('Truyện không tồn tại')
+
+    await this.prisma.story.delete({ where: { id } })
+
+    // Invalidate caches
+    await this.redisService.del(`story:${id}`)
+    await this.redisService.del(`story:slug:${story.slug}`)
+    await this.redisService.delByPattern('stories:*')
+
+    return { message: 'Xóa truyện vĩnh viễn thành công' }
+  }
+
+  async getStoryChapters(storyId: string) {
+    const story = await this.prisma.story.findUnique({ where: { id: storyId } })
+    if (!story) throw new NotFoundException('Truyện không tồn tại')
+
+    const cacheKey = `admin:chapters:${storyId}`
+    const cached = await this.redisService.get(cacheKey)
+    if (cached) return cached
+
+    const chapters = await this.prisma.chapter.findMany({
+      where: { storyId },
+      orderBy: { chapterNumber: 'asc' },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        chapterNumber: true,
+        isPublished: true,
+        isPremium: true,
+        publishedAt: true,
+        viewCount: true,
+        createdAt: true,
+      },
+    })
+
+    await this.redisService.set(cacheKey, chapters, 480)
+    return chapters
+  }
+
+  async approveChapter(id: string) {
+    const chapter = await this.prisma.chapter.findUnique({
+      where: { id },
+      include: { story: { select: { title: true, id: true } } },
+    })
+    if (!chapter) throw new NotFoundException('Chương không tồn tại')
+
+    const updated = await this.prisma.chapter.update({
+      where: { id },
+      data: {
+        isPublished: true,
+        publishedAt: new Date(),
+      },
+    })
+
+    // Invalidate caches
+    await this.redisService.delByPattern(`chapters:story:${chapter.storyId}*`)
+    await this.redisService.del(`admin:chapters:${chapter.storyId}`)
+    await this.redisService.del(`story:${chapter.storyId}`)
+
+    return updated
+  }
+
+  async rejectChapter(id: string) {
+    const chapter = await this.prisma.chapter.findUnique({ where: { id } })
+    if (!chapter) throw new NotFoundException('Chương không tồn tại')
+
+    const updated = await this.prisma.chapter.update({
+      where: { id },
+      data: {
+        isPublished: false,
+      },
+    })
+
+    // Invalidate caches
+    await this.redisService.delByPattern(`chapters:story:${chapter.storyId}*`)
+    await this.redisService.del(`admin:chapters:${chapter.storyId}`)
+    await this.redisService.del(`story:${chapter.storyId}`)
+
+    return updated
+  }
+
+  async deleteChapter(id: string) {
+    const chapter = await this.prisma.chapter.findUnique({ where: { id } })
+    if (!chapter) throw new NotFoundException('Chương không tồn tại')
+
+    await this.prisma.$transaction([
+      this.prisma.chapter.delete({ where: { id } }),
+      this.prisma.story.update({
+        where: { id: chapter.storyId },
+        data: {
+          totalChapters: { decrement: 1 },
+        },
+      }),
+    ])
+
+    // Invalidate caches
+    await this.redisService.delByPattern(`chapters:story:${chapter.storyId}*`)
+    await this.redisService.del(`admin:chapters:${chapter.storyId}`)
+    await this.redisService.del(`story:${chapter.storyId}`)
+
+    return { message: 'Xóa chương vĩnh viễn thành công' }
   }
 
   async getWithdrawals() {
