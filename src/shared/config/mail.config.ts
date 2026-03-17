@@ -9,6 +9,6 @@ export default registerAs(
   'mail',
   (): MailConfig => ({
     apiKey: process.env.RESEND_API_KEY!,
-    from: process.env.MAIL_FROM || 'onboarding@resend.dev',
+    from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
   }),
 )

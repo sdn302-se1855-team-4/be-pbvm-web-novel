@@ -7,7 +7,7 @@ import * as streamifier from 'streamifier'
 export class CloudinaryService {
   private readonly logger = new Logger(CloudinaryService.name)
 
-  constructor(private configService: ConfigService) {
+  constructor(private readonly configService: ConfigService) {
     cloudinary.config({
       cloud_name: this.configService.get<string>('CLOUDINARY_CLOUD_NAME'),
       api_key: this.configService.get<string>('CLOUDINARY_API_KEY'),

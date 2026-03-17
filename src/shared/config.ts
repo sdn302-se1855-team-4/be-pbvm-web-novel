@@ -29,6 +29,13 @@ const envSchema = z.object({
     .string()
     .default('http://localhost:3000')
     .transform((val) => val.split(',').map((s) => s.trim())),
+
+  RESEND_API_KEY: z.string(),
+  EMAIL_FROM: z.string(),
+
+  CLOUDINARY_CLOUD_NAME: z.string(),
+  CLOUDINARY_API_KEY: z.string(),
+  CLOUDINARY_API_SECRET: z.string(),
 })
 
 export type EnvConfig = z.infer<typeof envSchema>
