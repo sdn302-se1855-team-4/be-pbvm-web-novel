@@ -1,11 +1,19 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common'
-import { Role } from '@prisma/client'
+import { Prisma, Role } from '@prisma/client'
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { RedisService } from 'src/shared/services/redis.service'
 import { NotificationService } from '../notification/notification.service'
 import { InjectQueue } from '@nestjs/bullmq'
 import { MAIL_JOBS, MAIL_QUEUE } from 'src/shared/queues/mail.queue'
 import { Queue } from 'bullmq'
+import {
+  AdminChapterQueryDTO,
+  AdminGenreQueryDTO,
+  AdminStoryQueryDTO,
+  AdminTagQueryDTO,
+  AdminUserQueryDTO,
+  AdminWithdrawalQueryDTO,
+} from './admin.dto'
 
 @Injectable()
 export class AdminService {
@@ -30,44 +38,135 @@ export class AdminService {
     }
   }
 
-  async getUsers() {
-    return this.prisma.user.findMany({
-      select: {
-        id: true,
-        displayName: true,
-        username: true,
-        email: true,
-        role: true,
-        createdAt: true,
+  async getUsers(query: AdminUserQueryDTO) {
+    const { page, limit, search, role, sortBy, sortOrder } = query
+    const skip = (page - 1) * limit
+
+    const where: Prisma.UserWhereInput = {
+      ...(role && { role }),
+      ...(search && {
+        OR: [
+          { username: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { displayName: { contains: search, mode: 'insensitive' } },
+        ],
+      }),
+    }
+
+    const [users, total, roles, blocked] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : { skip }),
+        take: limit,
+        select: {
+          id: true,
+          displayName: true,
+          username: true,
+          email: true,
+          role: true,
+          createdAt: true,
+          isBlocked: true,
+        },
+        orderBy: {
+          [sortBy]: sortOrder,
+        },
+      }),
+      this.prisma.user.count({ where }),
+      this.prisma.user.groupBy({ by: ['role'], _count: { _all: true } }),
+      this.prisma.user.count({ where: { isBlocked: true } }),
+    ])
+
+    const counts = {
+      all: total,
+      READER: roles.find((r) => r.role === 'READER')?._count._all || 0,
+      WRITER: roles.find((r) => r.role === 'WRITER')?._count._all || 0,
+      ADMIN: roles.find((r) => r.role === 'ADMIN')?._count._all || 0,
+      blocked,
+    }
+
+    return {
+      data: users,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        nextCursor: users.length === limit ? users[users.length - 1].id : null,
+        counts,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    })
+    }
   }
 
-  async getStories() {
-    return this.prisma.story.findMany({
-      select: {
-        id: true,
-        title: true,
-        slug: true,
-        description: true,
-        type: true,
-        status: true,
-        isPublished: true,
-        createdAt: true,
-        author: {
-          select: { id: true, displayName: true, username: true },
+  async getStories(query: AdminStoryQueryDTO) {
+    const { page, limit, search, type, status, isPublished, sortBy, sortOrder } = query
+    const skip = (page - 1) * limit
+
+    const where: Prisma.StoryWhereInput = {
+      ...(type && { type }),
+      ...(status && { status }),
+      ...(isPublished !== undefined && { isPublished }),
+      ...(search && {
+        OR: [
+          { title: { contains: search, mode: 'insensitive' } },
+          { slug: { contains: search, mode: 'insensitive' } },
+          { author: { username: { contains: search, mode: 'insensitive' } } },
+        ],
+      }),
+    }
+
+    const [stories, total, published, draft, statuses] = await Promise.all([
+      this.prisma.story.findMany({
+        where,
+        ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : { skip }),
+        take: limit,
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          description: true,
+          type: true,
+          status: true,
+          isPublished: true,
+          totalChapters: true,
+          createdAt: true,
+          author: {
+            select: { id: true, displayName: true, username: true },
+          },
+          _count: {
+            select: { chapters: true },
+          },
         },
-        _count: {
-          select: { chapters: true },
+        orderBy: {
+          [sortBy]: sortOrder,
         },
+      }),
+      this.prisma.story.count({ where }),
+      this.prisma.story.count({ where: { isPublished: true } }),
+      this.prisma.story.count({ where: { isPublished: false } }),
+      this.prisma.story.groupBy({ by: ['status'], _count: { _all: true } }),
+    ])
+
+    const counts = {
+      all: total,
+      published,
+      draft,
+      ONGOING: statuses.find((s) => s.status === 'ONGOING')?._count._all || 0,
+      COMPLETED: statuses.find((s) => s.status === 'COMPLETED')?._count._all || 0,
+      HIATUS: statuses.find((s) => s.status === 'HIATUS')?._count._all || 0,
+      DROPPED: statuses.find((s) => s.status === 'DROPPED')?._count._all || 0,
+    }
+
+    return {
+      data: stories,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        nextCursor: stories.length === limit ? stories[stories.length - 1].id : null,
+        counts,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    })
+    }
   }
 
   async approveStory(id: string) {
@@ -152,32 +251,56 @@ export class AdminService {
     return { message: 'Xóa truyện vĩnh viễn thành công' }
   }
 
-  async getStoryChapters(storyId: string) {
+  async getStoryChapters(storyId: string, query: AdminChapterQueryDTO) {
+    const { page, limit, isPublished } = query
+    const skip = (page - 1) * limit
+
     const story = await this.prisma.story.findUnique({ where: { id: storyId } })
     if (!story) throw new NotFoundException('Truyện không tồn tại')
 
-    const cacheKey = `admin:chapters:${storyId}`
+    const cacheKey = `admin:chapters:${storyId}:${JSON.stringify(query)}`
     const cached = await this.redisService.get(cacheKey)
     if (cached) return cached
 
-    const chapters = await this.prisma.chapter.findMany({
-      where: { storyId },
-      orderBy: { chapterNumber: 'asc' },
-      select: {
-        id: true,
-        title: true,
-        slug: true,
-        chapterNumber: true,
-        isPublished: true,
-        isPremium: true,
-        publishedAt: true,
-        viewCount: true,
-        createdAt: true,
-      },
-    })
+    const where: Prisma.ChapterWhereInput = {
+      storyId,
+      ...(isPublished !== undefined && { isPublished }),
+    }
 
-    await this.redisService.set(cacheKey, chapters, 480)
-    return chapters
+    const [chapters, total] = await Promise.all([
+      this.prisma.chapter.findMany({
+        where,
+        ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : { skip }),
+        take: limit,
+        orderBy: { chapterNumber: 'asc' },
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          chapterNumber: true,
+          isPublished: true,
+          isPremium: true,
+          publishedAt: true,
+          viewCount: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.chapter.count({ where }),
+    ])
+
+    const result = {
+      data: chapters,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        nextCursor: chapters.length === limit ? chapters[chapters.length - 1].id : null,
+      },
+    }
+
+    await this.redisService.set(cacheKey, result, 600) // 10 min
+    return result
   }
 
   async approveChapter(id: string) {
@@ -197,7 +320,7 @@ export class AdminService {
 
     // Invalidate caches
     await this.redisService.delByPattern(`chapters:story:${chapter.storyId}*`)
-    await this.redisService.del(`admin:chapters:${chapter.storyId}`)
+    await this.redisService.delByPattern(`admin:chapters:${chapter.storyId}*`)
     await this.redisService.del(`story:${chapter.storyId}`)
 
     return updated
@@ -216,7 +339,7 @@ export class AdminService {
 
     // Invalidate caches
     await this.redisService.delByPattern(`chapters:story:${chapter.storyId}*`)
-    await this.redisService.del(`admin:chapters:${chapter.storyId}`)
+    await this.redisService.delByPattern(`admin:chapters:${chapter.storyId}*`)
     await this.redisService.del(`story:${chapter.storyId}`)
 
     return updated
@@ -238,35 +361,71 @@ export class AdminService {
 
     // Invalidate caches
     await this.redisService.delByPattern(`chapters:story:${chapter.storyId}*`)
-    await this.redisService.del(`admin:chapters:${chapter.storyId}`)
+    await this.redisService.delByPattern(`admin:chapters:${chapter.storyId}*`)
     await this.redisService.del(`story:${chapter.storyId}`)
 
     return { message: 'Xóa chương vĩnh viễn thành công' }
   }
 
-  async getWithdrawals() {
-    return this.prisma.transaction.findMany({
-      where: {
-        type: 'WITHDRAWAL',
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      include: {
-        wallet: {
-          select: {
-            user: {
-              select: {
-                id: true,
-                displayName: true,
-                username: true,
-                email: true,
+  async getWithdrawals(query: AdminWithdrawalQueryDTO) {
+    const { page, limit, status, sortBy, sortOrder } = query
+    const skip = (page - 1) * limit
+
+    const where: Prisma.TransactionWhereInput = {
+      type: 'WITHDRAWAL',
+      ...(status && { status }),
+    }
+
+    const [withdrawals, total, statusCounts] = await Promise.all([
+      this.prisma.transaction.findMany({
+        where,
+        ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : { skip }),
+        take: limit,
+        orderBy: {
+          [sortBy]: sortOrder,
+        },
+        include: {
+          wallet: {
+            select: {
+              user: {
+                select: {
+                  id: true,
+                  displayName: true,
+                  username: true,
+                  email: true,
+                },
               },
             },
           },
         },
+      }),
+      this.prisma.transaction.count({ where }),
+      this.prisma.transaction.groupBy({
+        where: { type: 'WITHDRAWAL' },
+        by: ['status'],
+        _count: { _all: true },
+      }),
+    ])
+
+    const counts = {
+      all: total,
+      PENDING: statusCounts.find((s) => s.status === 'PENDING')?._count._all || 0,
+      COMPLETED: statusCounts.find((s) => s.status === 'COMPLETED')?._count._all || 0,
+      FAILED: statusCounts.find((s) => s.status === 'FAILED')?._count._all || 0,
+      CANCELLED: statusCounts.find((s) => s.status === 'CANCELLED')?._count._all || 0,
+    }
+
+    return {
+      data: withdrawals,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        nextCursor: withdrawals.length === limit ? withdrawals[withdrawals.length - 1].id : null,
+        counts,
       },
-    })
+    }
   }
 
   async approveWithdrawal(id: string) {
@@ -349,11 +508,41 @@ export class AdminService {
 
   // ==================== Genre CRUD ====================
 
-  async getGenres() {
-    return this.prisma.genre.findMany({
-      orderBy: { name: 'asc' },
-      include: { _count: { select: { stories: true } } },
-    })
+  async getGenres(query: AdminGenreQueryDTO) {
+    const { page, limit, search } = query
+    const skip = (page - 1) * limit
+
+    const where = {
+      ...(search && {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' as const } },
+          { slug: { contains: search, mode: 'insensitive' as const } },
+        ],
+      }),
+    }
+
+    const [genres, total] = await Promise.all([
+      this.prisma.genre.findMany({
+        where,
+        ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : { skip }),
+        take: limit,
+        orderBy: { name: 'asc' },
+        include: { _count: { select: { stories: true } } },
+      }),
+      this.prisma.genre.count({ where }),
+    ])
+
+    return {
+      data: genres,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        nextCursor: genres.length === limit ? genres[genres.length - 1].id : null,
+        counts: { all: total },
+      },
+    }
   }
 
   async createGenre(name: string, slug: string) {
@@ -400,11 +589,41 @@ export class AdminService {
 
   // ==================== Tag CRUD ====================
 
-  async getTags() {
-    return this.prisma.tag.findMany({
-      orderBy: { name: 'asc' },
-      include: { _count: { select: { stories: true } } },
-    })
+  async getTags(query: AdminTagQueryDTO) {
+    const { page, limit, search } = query
+    const skip = (page - 1) * limit
+
+    const where = {
+      ...(search && {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' as const } },
+          { slug: { contains: search, mode: 'insensitive' as const } },
+        ],
+      }),
+    }
+
+    const [tags, total] = await Promise.all([
+      this.prisma.tag.findMany({
+        where,
+        ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : { skip }),
+        take: limit,
+        orderBy: { name: 'asc' },
+        include: { _count: { select: { stories: true } } },
+      }),
+      this.prisma.tag.count({ where }),
+    ])
+
+    return {
+      data: tags,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        nextCursor: tags.length === limit ? tags[tags.length - 1].id : null,
+        counts: { all: total },
+      },
+    }
   }
 
   async createTag(name: string, slug: string) {

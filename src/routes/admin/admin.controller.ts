@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { Role } from '@prisma/client'
 import { AdminService } from './admin.service'
@@ -6,6 +6,14 @@ import { AccessAuthGuard } from 'src/shared/guards/access-auth.guard'
 import { RolesGuard } from 'src/shared/guards/roles.guard'
 import { Roles } from 'src/shared/decorators/roles.decorator'
 import { ResponseMessage } from 'src/shared/decorators/response-message.decorator'
+import {
+  AdminChapterQueryDTO,
+  AdminGenreQueryDTO,
+  AdminStoryQueryDTO,
+  AdminTagQueryDTO,
+  AdminUserQueryDTO,
+  AdminWithdrawalQueryDTO,
+} from './admin.dto'
 
 @ApiTags('admin')
 @Controller('admin')
@@ -23,14 +31,14 @@ export class AdminController {
 
   @Get('users')
   @ResponseMessage('Lấy danh sách người dùng thành công')
-  getUsers() {
-    return this.adminService.getUsers()
+  getUsers(@Query() query: AdminUserQueryDTO) {
+    return this.adminService.getUsers(query)
   }
 
   @Get('stories')
   @ResponseMessage('Lấy danh sách truyện thành công')
-  getStories() {
-    return this.adminService.getStories()
+  getStories(@Query() query: AdminStoryQueryDTO) {
+    return this.adminService.getStories(query)
   }
 
   @Put('stories/:id/approve')
@@ -53,8 +61,8 @@ export class AdminController {
 
   @Get('stories/:id/chapters')
   @ResponseMessage('Lấy danh sách chương của truyện thành công')
-  getStoryChapters(@Param('id') id: string) {
-    return this.adminService.getStoryChapters(id)
+  getStoryChapters(@Param('id') id: string, @Query() query: AdminChapterQueryDTO) {
+    return this.adminService.getStoryChapters(id, query)
   }
 
   @Put('chapters/:id/approve')
@@ -77,8 +85,8 @@ export class AdminController {
 
   @Get('withdrawals')
   @ResponseMessage('Lấy danh sách yêu cầu rút tiền thành công')
-  getWithdrawals() {
-    return this.adminService.getWithdrawals()
+  getWithdrawals(@Query() query: AdminWithdrawalQueryDTO) {
+    return this.adminService.getWithdrawals(query)
   }
 
   @Put('withdrawals/:id/approve')
@@ -97,8 +105,8 @@ export class AdminController {
 
   @Get('genres')
   @ResponseMessage('Lấy danh sách thể loại thành công')
-  getGenres() {
-    return this.adminService.getGenres()
+  getGenres(@Query() query: AdminGenreQueryDTO) {
+    return this.adminService.getGenres(query)
   }
 
   @Post('genres')
@@ -123,8 +131,8 @@ export class AdminController {
 
   @Get('tags')
   @ResponseMessage('Lấy danh sách tag thành công')
-  getTags() {
-    return this.adminService.getTags()
+  getTags(@Query() query: AdminTagQueryDTO) {
+    return this.adminService.getTags(query)
   }
 
   @Post('tags')

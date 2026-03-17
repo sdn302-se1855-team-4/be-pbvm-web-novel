@@ -39,7 +39,8 @@ export class ChapterController {
   ) {
     const user = req.user as any
     const userId = user?.userId || user?.id
-    return this.chapterService.findOne(storyId, chapterNumber, skipView === 'true', userId)
+    const userRole = user?.role
+    return this.chapterService.findOne(storyId, chapterNumber, skipView === 'true', userId, userRole)
   }
 
   @Put(':chapterNumber')

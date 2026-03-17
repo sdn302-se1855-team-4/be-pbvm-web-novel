@@ -76,7 +76,7 @@ export class ChapterService {
     if (cached) return cached
 
     const chapters = await this.prisma.chapter.findMany({
-      where: { storyId },
+      where: { storyId, isPublished: true },
       orderBy: { chapterNumber: 'asc' },
       select: {
         id: true,
@@ -97,7 +97,7 @@ export class ChapterService {
     return chapters
   }
 
-  async findOne(storyId: string, chapterNumber: number, skipView = false, userId?: string) {
+  async findOne(storyId: string, chapterNumber: number, skipView = false, userId?: string, userRole?: string) {
     const chapter = await this.prisma.chapter.findUnique({
       where: { storyId_chapterNumber: { storyId, chapterNumber } },
       include: {
@@ -109,19 +109,7 @@ export class ChapterService {
 
     // Access Control Logic for Unapproved Chapters
     if (!chapter.isPublished) {
-      if (!userId) {
-        throw new ForbiddenException('Chương này chưa được phê duyệt')
-      }
-
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { role: true },
-      })
-
-      const isAuthor = chapter.story.authorId === userId
-      const isAdmin = user?.role === 'ADMIN'
-
-      if (!isAuthor && !isAdmin) {
+      if (!userId || (chapter.story.authorId !== userId && userRole !== 'ADMIN')) {
         throw new ForbiddenException('Chương này chưa được phê duyệt. Chỉ Tác giả hoặc Admin mới có thể xem.')
       }
     }
@@ -137,7 +125,6 @@ export class ChapterService {
         isLocked = false
       } else {
         // Logged-in Reader -> check wallet for purchase
-        // Allow ADMIN to read everything as well if needed, but here we assume only author/buyer
         const hasPurchased = await this.walletService.hasUnlockedChapter(userId, chapter.id)
         if (!hasPurchased) {
           isLocked = true
@@ -170,8 +157,7 @@ export class ChapterService {
       }),
     ])
 
-    const result = { ...chapter, prevChapter, nextChapter, isLocked }
-    return result
+    return { ...chapter, prevChapter, nextChapter, isLocked }
   }
 
   async update(storyId: string, chapterNumber: number, userId: string, userRole: string, body: UpdateChapterBodyType) {
