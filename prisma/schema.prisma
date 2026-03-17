@@ -12,6 +12,10 @@ model User {
   username          String           @unique
   passwordHash      String?
   displayName       String?
+  firstName         String?
+  lastName          String?
+  gender            Gender?
+  isAnonymous       Boolean          @default(false)
   avatar            String?
   bio               String?
   role              Role             @default(READER)
@@ -345,6 +349,12 @@ model Notification {
   @@index([userId])
   @@index([isRead])
   @@index([createdAt])
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
 }
 
 enum Role {
