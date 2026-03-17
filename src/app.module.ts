@@ -61,7 +61,7 @@ import { APP_GUARD } from '@nestjs/core'
     ThrottlerModule.forRoot([
       {
         ttl: 1000,
-        limit: 1000,
+        limit: 100,
       },
     ]),
     ScheduleModule.forRoot(),
