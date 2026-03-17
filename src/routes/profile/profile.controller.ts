@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Patch, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common'
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger'
 import { ProfileService } from './profile.service'
 import { AccessAuthGuard } from 'src/shared/guards/access-auth.guard'
 import { ActiveUser } from 'src/shared/decorators/active-user.decorator'
@@ -6,7 +7,6 @@ import { ResponseMessage } from 'src/shared/decorators/response-message.decorato
 import { UpdateProfileDTO } from './profile.dto'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { CloudinaryService } from 'src/shared/services/cloudinary.service'
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 
 @ApiTags('users')
 @Controller('users')
@@ -34,6 +34,18 @@ export class ProfileController {
 
   @Patch('me/avatar')
   @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
   @UseGuards(AccessAuthGuard)
   @UseInterceptors(FileInterceptor('file'))
   @ResponseMessage('Cập nhật ảnh đại diện thành công')

@@ -8,9 +8,9 @@ export class CloudinaryService {
   private readonly logger = new Logger(CloudinaryService.name)
 
   constructor(private readonly configService: ConfigService) {
-    const cloudName = this.configService.get<string>('CLOUDINARY_CLOUD_NAME');
-    const apiKey = this.configService.get<string>('CLOUDINARY_API_KEY');
-    const apiSecret = this.configService.get<string>('CLOUDINARY_API_SECRET');
+    const cloudName = this.configService.get<string>('CLOUDINARY_CLOUD_NAME')
+    const apiKey = this.configService.get<string>('CLOUDINARY_API_KEY')
+    const apiSecret = this.configService.get<string>('CLOUDINARY_API_SECRET')
 
     if (!cloudName || !apiKey || !apiSecret) {
       this.logger.error(

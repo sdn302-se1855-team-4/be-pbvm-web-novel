@@ -1,4 +1,5 @@
 import { Controller, Post, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common'
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { CloudinaryService } from '../../shared/services/cloudinary.service'
 import { AccessAuthGuard } from '../../shared/guards/access-auth.guard'
@@ -10,6 +11,20 @@ export class UploadController {
   constructor(private readonly cloudinaryService: CloudinaryService) {}
 
   @Post('image')
+  @ApiBearerAuth()
+  @ApiTags('upload')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
   @UseInterceptors(FileInterceptor('file'))
   @ResponseMessage('Tải ảnh lên thành công')
   async uploadImage(@UploadedFile() file: Express.Multer.File) {
