@@ -27,6 +27,12 @@ export class WalletController {
     return this.walletService.verifyDeposit(userId, parseInt(orderCode, 10))
   }
 
+  @Get('deposit/cancel')
+  @UseGuards(AccessAuthGuard)
+  async cancelDeposit(@ActiveUser('sub') userId: string, @Query('orderCode') orderCode: string) {
+    return this.walletService.cancelDeposit(userId, parseInt(orderCode, 10))
+  }
+
   // PayOS Webhook — NO AUTH (PayOS calls this directly)
   @Post('payos-webhook')
   async payosWebhook(@Body() body: Record<string, unknown>, @Res() res: Response) {
