@@ -17,7 +17,7 @@ export class MailProcessor extends WorkerHost {
 
     switch (job.name) {
       case MAIL_JOBS.SEND_FORGOT_PASSWORD:
-        return this.handleForgotPassword(job.data as { email: string; token: string; displayName: string })
+        return this.handleForgotPassword(job.data as { email: string; otp: string; displayName: string })
       case MAIL_JOBS.SEND_STORY_REJECTION:
         return this.handleStoryRejection(
           job.data as { email: string; authorName: string; storyTitle: string; reason?: string },
@@ -27,23 +27,18 @@ export class MailProcessor extends WorkerHost {
     }
   }
 
-  private async handleForgotPassword(data: { email: string; token: string; displayName: string }) {
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${data.token}`
-
+  private async handleForgotPassword(data: { email: string; otp: string; displayName: string }) {
     await this.mailService.sendMail({
       to: data.email,
-      subject: 'Khôi phục mật khẩu - Chapter One',
+      subject: 'Mã xác thực khôi phục mật khẩu - Chapter One',
       html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Xin chào ${data.displayName},</h2>
-          <p>Bạn đã yêu cầu khôi phục mật khẩu cho tài khoản tại Chapter One.</p>
-          <p>Vui lòng nhấn vào nút bên dưới để đặt lại mật khẩu của bạn. Liên kết này sẽ hết hạn sau 15 phút.</p>
-          <div style="margin: 30px 0;">
-            <a href="${resetUrl}" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
-              Đặt lại mật khẩu
-            </a>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <h2 style="color: #333; text-align: center;">Khôi phục mật khẩu</h2>
+          <p>Xin chào <strong>${data.displayName}</strong>,</p>
+          <p>Chúng tôi đã nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn. Vui lòng sử dụng mã OTP dưới đây để hoàn tất quá trình:</p>
+          <div style="background-color: #f4f4f4; padding: 15px; text-align: center; border-radius: 5px; margin: 20px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #d32f2f;">${data.otp}</span>
           </div>
-          <p>Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.</p>
           <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
           <p style="color: #888; font-size: 12px;">Đây là email tự động, vui lòng không phản hồi.</p>
         </div>

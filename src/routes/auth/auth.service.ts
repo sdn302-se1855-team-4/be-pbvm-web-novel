@@ -15,7 +15,6 @@ import { InjectQueue } from '@nestjs/bullmq'
 import { MAIL_JOBS, MAIL_QUEUE } from 'src/shared/queues/mail.queue'
 import { Queue } from 'bullmq'
 import { ChangePasswordBodyType, ResetPasswordBodyType } from './auth.dto/auth.dto'
-import { randomBytes } from 'crypto'
 
 @Injectable()
 export class AuthService {
@@ -261,33 +260,34 @@ export class AuthService {
       return { message: 'Nếu email tồn tại trong hệ thống, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu.' }
     }
 
-    const token = randomBytes(32).toString('hex')
-    const resetKey = `password-reset:${token}`
+    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    const resetKey = `password-reset-otp:${email}`
 
-    // Store token in Redis with 15min expiry
-    await this.redisService.set(resetKey, user.id, 900)
+    // Store OTP in Redis with 15min expiry
+    await this.redisService.set(resetKey, { userId: user.id, otp }, 900)
 
+    // Add email job to queue
     await this.mailQueue.add(MAIL_JOBS.SEND_FORGOT_PASSWORD, {
-      email: user.email,
-      token,
+      email,
+      otp,
       displayName: user.displayName || user.username,
     })
 
-    return { message: 'Nếu email tồn tại trong hệ thống, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu.' }
+    return { message: 'Mã OTP đã được gửi đến email của bạn' }
   }
 
   async resetPassword(body: ResetPasswordBodyType) {
-    const resetKey = `password-reset:${body.token}`
-    const userId = await this.redisService.get<string>(resetKey)
+    const resetKey = `password-reset-otp:${body.email}`
+    const data = await this.redisService.get<{ userId: string; otp: string }>(resetKey)
 
-    if (!userId) {
-      throw new BadRequestException('Liên kết đặt lại mật khẩu đã hết hạn hoặc không hợp lệ')
+    if (!data || data.otp !== body.otp) {
+      throw new BadRequestException('Mã OTP không chính xác hoặc đã hết hạn')
     }
 
     const passwordHash = await this.hashingService.hash(body.newPassword)
 
     await this.prisma.user.update({
-      where: { id: userId },
+      where: { id: data.userId },
       data: { passwordHash },
     })
 

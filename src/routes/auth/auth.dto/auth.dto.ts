@@ -48,7 +48,8 @@ export class ForgotPasswordBodyDTO extends createZodDto(ForgotPasswordBodySchema
 
 // ==================== Reset Password ====================
 export const ResetPasswordBodySchema = z4.object({
-  token: z4.string().min(1, 'Token không được để trống'),
+  email: z4.email('Email không hợp lệ'),
+  otp: z4.string().length(6, 'Mã OTP phải có 6 chữ số'),
   newPassword: z4.string().min(6, 'Mật khẩu tối thiểu 6 ký tự').max(50, 'Mật khẩu tối đa 50 ký tự'),
 })
 export type ResetPasswordBodyType = z4.infer<typeof ResetPasswordBodySchema>

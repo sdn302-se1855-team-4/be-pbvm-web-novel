@@ -32,6 +32,8 @@ import { ScheduleModule } from '@nestjs/schedule'
 import { UploadModule } from './routes/upload/upload.module'
 
 import { BullModule } from '@nestjs/bullmq'
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler'
+import { APP_GUARD } from '@nestjs/core'
 
 @Module({
   imports: [
@@ -56,6 +58,12 @@ import { BullModule } from '@nestjs/bullmq'
         }
       },
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 1000,
+        limit: 1000,
+      },
+    ]),
     ScheduleModule.forRoot(),
     SharedModule,
     AuthModule,
@@ -73,6 +81,10 @@ import { BullModule } from '@nestjs/bullmq'
     UploadModule,
   ],
   controllers: [AppController],
-  providers: [AppService, { provide: APP_PIPE, useClass: CustomZodValidationPipe }],
+  providers: [
+    AppService,
+    { provide: APP_PIPE, useClass: CustomZodValidationPipe },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}
