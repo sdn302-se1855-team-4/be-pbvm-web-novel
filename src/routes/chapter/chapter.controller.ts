@@ -22,9 +22,14 @@ export class ChapterController {
   }
 
   @Get()
+  @UseGuards(OptionalAuthGuard)
+  @ApiBearerAuth()
   @ResponseMessage('Lấy danh sách chapter thành công')
-  findAll(@Param('storyId') storyId: string) {
-    return this.chapterService.findAllByStory(storyId)
+  findAll(@Param('storyId') storyId: string, @Req() req: Request) {
+    const user = req.user as any
+    const userId = user?.userId || user?.id
+    const userRole = user?.role
+    return this.chapterService.findAllByStory(storyId, userId, userRole)
   }
 
   @Get(':chapterNumber')
