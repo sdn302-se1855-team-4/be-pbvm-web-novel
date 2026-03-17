@@ -93,7 +93,7 @@ export class ChapterService {
       },
     })
 
-    await this.redisService.set(cacheKey, chapters, 300) // 5 min
+    await this.redisService.set(cacheKey, chapters, 1800) // 30 min
     return chapters
   }
 
@@ -151,7 +151,8 @@ export class ChapterService {
       }),
     ])
 
-    return { ...chapter, prevChapter, nextChapter, isLocked }
+    const result = { ...chapter, prevChapter, nextChapter, isLocked }
+    return result
   }
 
   async update(storyId: string, chapterNumber: number, userId: string, userRole: string, body: UpdateChapterBodyType) {
@@ -213,6 +214,9 @@ export class ChapterService {
       where: { id: storyId },
       data: { totalChapters: { decrement: 1 } },
     })
+
+    // Invalidate caches
+    await this.redisService.delByPattern(`chapters:story:${storyId}*`)
 
     return { message: 'Xóa chapter thành công' }
   }

@@ -1,10 +1,14 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { CreateCommentBodyType, UpdateCommentBodyType } from './comment.dto/comment.dto'
+import { RedisService } from 'src/shared/services/redis.service'
 
 @Injectable()
 export class CommentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redisService: RedisService,
+  ) {}
 
   async create(storyId: string, userId: string, body: CreateCommentBodyType) {
     const story = await this.prisma.story.findUnique({ where: { id: storyId } })
@@ -15,7 +19,7 @@ export class CommentService {
       if (!parentComment) throw new NotFoundException('Comment cha không tồn tại')
     }
 
-    return this.prisma.comment.create({
+    const comment = await this.prisma.comment.create({
       data: {
         content: body.content,
         storyId,
@@ -26,10 +30,18 @@ export class CommentService {
         user: { select: { id: true, username: true, displayName: true, avatar: true } },
       },
     })
+
+    // Invalidate cache
+    await this.redisService.delByPattern(`comments:story:${storyId}*`)
+
+    return comment
   }
 
   async findByStory(storyId: string, userId?: string, page = 1, limit = 20) {
     const skip = (page - 1) * limit
+    const cacheKey = `comments:story:${storyId}:${userId || 'guest'}:p${page}`
+    const cached = await this.redisService.get(cacheKey)
+    if (cached) return cached
 
     const [comments, total] = await Promise.all([
       this.prisma.comment.findMany({
@@ -65,10 +77,13 @@ export class CommentService {
       })),
     }))
 
-    return {
+    const result = {
       data: formattedComments,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     }
+
+    await this.redisService.set(cacheKey, result, 1800) // 30 min
+    return result
   }
 
   async like(commentId: string, userId: string) {
@@ -76,9 +91,11 @@ export class CommentService {
     if (!comment) throw new NotFoundException('Comment không tồn tại')
 
     try {
-      return await this.prisma.commentLike.create({
+      const result = await this.prisma.commentLike.create({
         data: { commentId, userId },
       })
+      await this.redisService.delByPattern(`comments:story:${comment.storyId}*`)
+      return result
     } catch {
       // If unique constraint fails, user already liked the comment
       return { message: 'Bạn đã like comment này rồi' }
@@ -94,6 +111,10 @@ export class CommentService {
     await this.prisma.commentLike.delete({
       where: { id: like.id },
     })
+    const comment = await this.prisma.comment.findUnique({ where: { id: commentId } })
+    if (comment) {
+      await this.redisService.delByPattern(`comments:story:${comment.storyId}*`)
+    }
     return { message: 'Đã bỏ like comment' }
   }
 
@@ -104,13 +125,18 @@ export class CommentService {
       throw new ForbiddenException('Bạn không có quyền chỉnh sửa comment này')
     }
 
-    return this.prisma.comment.update({
+    const updated = await this.prisma.comment.update({
       where: { id: commentId },
       data: { content: body.content },
       include: {
         user: { select: { id: true, username: true, displayName: true, avatar: true } },
       },
     })
+
+    // Invalidate cache
+    await this.redisService.delByPattern(`comments:story:${comment.storyId}*`)
+
+    return updated
   }
 
   async delete(commentId: string, userId: string, userRole: string) {
@@ -121,6 +147,10 @@ export class CommentService {
     }
 
     await this.prisma.comment.delete({ where: { id: commentId } })
+
+    // Invalidate cache
+    await this.redisService.delByPattern(`comments:story:${comment.storyId}*`)
+
     return { message: 'Xóa comment thành công' }
   }
 }

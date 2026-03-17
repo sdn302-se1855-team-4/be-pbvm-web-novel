@@ -38,6 +38,7 @@ import { MailProcessor } from './processors/mail.processor'
     MailService,
     AccessAuthGuard,
     RefreshAuthGuard,
+    BullModule,
   ],
   imports: [
     JwtModule.register({}),

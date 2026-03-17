@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common'
 import { PrismaService } from 'src/shared/services/prisma.service'
+import { RedisService } from 'src/shared/services/redis.service'
 
 @Injectable()
 export class ReviewService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redisService: RedisService,
+  ) {}
 
   async createReview(userId: string, body: { storyId: string; rating: number; content?: string }) {
     const story = await this.prisma.story.findUnique({ where: { id: body.storyId } })
@@ -34,10 +38,18 @@ export class ReviewService {
       },
     })
 
+    // Invalidate cache
+    await this.redisService.delByPattern(`reviews:story:${body.storyId}*`)
+    await this.redisService.del(`story:${body.storyId}`) // Story rating changed
+
     return review
   }
 
   async getReviews(storyId: string, page = 1, limit = 10) {
+    const cacheKey = `reviews:story:${storyId}:p${page}`
+    const cached = await this.redisService.get(cacheKey)
+    if (cached) return cached
+
     const skip = (page - 1) * limit
     const [data, total] = await Promise.all([
       this.prisma.review.findMany({
@@ -49,7 +61,10 @@ export class ReviewService {
       }),
       this.prisma.review.count({ where: { storyId } }),
     ])
-    return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }
+
+    const result = { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }
+    await this.redisService.set(cacheKey, result, 1800) // 30 min
+    return result
   }
 
   async deleteReview(userId: string, reviewId: string) {
@@ -69,6 +84,10 @@ export class ReviewService {
       where: { id: review.storyId },
       data: { rating: agg._avg.rating || 0, totalRatings: agg._count.rating || 0 },
     })
+
+    // Invalidate cache
+    await this.redisService.delByPattern(`reviews:story:${review.storyId}*`)
+    await this.redisService.del(`story:${review.storyId}`)
 
     return { message: 'Xóa đánh giá thành công' }
   }

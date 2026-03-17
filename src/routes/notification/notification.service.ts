@@ -6,6 +6,7 @@ import { FirebaseService } from 'src/shared/services/firebase.service'
 import { Notification } from '@prisma/client'
 import { InjectQueue } from '@nestjs/bullmq'
 import { Queue } from 'bullmq'
+import { RedisService } from 'src/shared/services/redis.service'
 
 @Injectable()
 export class NotificationService {
@@ -15,10 +16,15 @@ export class NotificationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly firebaseService: FirebaseService,
+    private readonly redisService: RedisService,
     @InjectQueue('notifications') private readonly notificationQueue: Queue,
   ) {}
 
   async getNotifications(userId: string, page = 1, limit = 20) {
+    const cacheKey = `notifications:user:${userId}:p${page}`
+    const cached = await this.redisService.get(cacheKey)
+    if (cached) return cached
+
     const skip = (page - 1) * limit
     const [data, total, unreadCount] = await Promise.all([
       this.prisma.notification.findMany({
@@ -30,11 +36,15 @@ export class NotificationService {
       this.prisma.notification.count({ where: { userId } }),
       this.prisma.notification.count({ where: { userId, isRead: false } }),
     ])
-    return {
+
+    const result = {
       data,
       unreadCount,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     }
+
+    await this.redisService.set(cacheKey, result, 60) // 1 min (low TTL for notifications)
+    return result
   }
 
   async markAsRead(userId: string, notificationId: string) {
@@ -42,6 +52,10 @@ export class NotificationService {
       where: { id: notificationId, userId },
       data: { isRead: true },
     })
+
+    // Invalidate cache
+    await this.redisService.delByPattern(`notifications:user:${userId}*`)
+
     return { message: 'Đã đánh dấu đã đọc' }
   }
 
@@ -50,6 +64,10 @@ export class NotificationService {
       where: { userId, isRead: false },
       data: { isRead: true },
     })
+
+    // Invalidate cache
+    await this.redisService.delByPattern(`notifications:user:${userId}*`)
+
     return { message: 'Đã đánh dấu tất cả đã đọc' }
   }
 
@@ -76,6 +94,9 @@ export class NotificationService {
 
     // Broadcast via SSE (Real-time update)
     this.notification$.next({ userId: data.userId, notification })
+
+    // Invalidate cache for user
+    await this.redisService.delByPattern(`notifications:user:${data.userId}*`)
 
     // Send via FCM
     await this.sendPushNotification(data.userId, data.title, data.message, {

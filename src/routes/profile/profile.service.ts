@@ -1,12 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from 'src/shared/services/prisma.service'
+import { RedisService } from 'src/shared/services/redis.service'
 import { UpdateProfileType } from './profile.dto'
 
 @Injectable()
 export class ProfileService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redisService: RedisService,
+  ) {}
 
   async getPublicProfile(userId: string) {
+    const cacheKey = `profile:public:${userId}`
+    const cached = await this.redisService.get(cacheKey)
+    if (cached) return cached
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -40,10 +48,16 @@ export class ProfileService {
       },
     })
 
-    return { ...user, stories }
+    const result = { ...user, stories }
+    await this.redisService.set(cacheKey, result, 1800) // 30 min
+    return result
   }
 
   async getOwnProfile(userId: string) {
+    const cacheKey = `profile:me:${userId}`
+    const cached = await this.redisService.get(cacheKey)
+    if (cached) return cached
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -71,20 +85,34 @@ export class ProfileService {
       },
     })
     if (!user) throw new NotFoundException('Người dùng không tồn tại')
+
+    await this.redisService.set(cacheKey, user, 300) // 5 min
     return user
   }
 
   async updateProfile(userId: string, data: UpdateProfileType) {
-    return await this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: userId },
       data,
     })
+
+    // Invalidate caches
+    await this.redisService.del(`profile:me:${userId}`)
+    await this.redisService.del(`profile:public:${userId}`)
+
+    return updated
   }
 
   async updateAvatar(userId: string, avatarUrl: string) {
-    return await this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: userId },
       data: { avatar: avatarUrl },
     })
+
+    // Invalidate caches
+    await this.redisService.del(`profile:me:${userId}`)
+    await this.redisService.del(`profile:public:${userId}`)
+
+    return updated
   }
 }

@@ -97,7 +97,7 @@ export class StoryService {
       },
     }
 
-    await this.redisService.set(cacheKey, result, 300) // 5 min
+    await this.redisService.set(cacheKey, result, 1800) // 30 min
     return result
   }
 
@@ -250,6 +250,7 @@ export class StoryService {
 
     // Invalidate caches
     await this.redisService.del(`story:${id}`)
+    await this.redisService.del(`story:slug:${updated.slug}`)
     await this.redisService.delByPattern('stories:*')
 
     return updated
@@ -266,6 +267,7 @@ export class StoryService {
 
     // Invalidate caches
     await this.redisService.del(`story:${id}`)
+    await this.redisService.del(`story:slug:${story.slug}`)
     await this.redisService.delByPattern('stories:*')
 
     return { message: 'Xóa truyện thành công' }
@@ -292,6 +294,10 @@ export class StoryService {
     const { page, limit, sortBy, sortOrder } = query
     const skip = (page - 1) * limit
 
+    const cacheKey = `stories:my:${userId}:${JSON.stringify(query)}`
+    const cached = await this.redisService.get(cacheKey)
+    if (cached) return cached
+
     const [stories, total] = await Promise.all([
       this.prisma.story.findMany({
         where: { authorId: userId },
@@ -307,9 +313,12 @@ export class StoryService {
       this.prisma.story.count({ where: { authorId: userId } }),
     ])
 
-    return {
+    const result = {
       data: stories,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     }
+
+    await this.redisService.set(cacheKey, result, 300) // 5 min
+    return result
   }
 }
