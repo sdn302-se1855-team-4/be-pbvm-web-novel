@@ -182,6 +182,34 @@ export class WalletService {
     }
   }
 
+  // Cancel deposit (called from frontend when user explicitly cancels)
+  async cancelDeposit(userId: string, orderCode: number) {
+    const wallet = await this.getWallet(userId)
+    const pendingTx = await this.prisma.transaction.findFirst({
+      where: {
+        walletId: wallet.id,
+        type: 'DEPOSIT',
+        status: 'PENDING',
+        metadata: { contains: String(orderCode) },
+      },
+    })
+
+    if (!pendingTx) {
+      throw new NotFoundException('Không tìm thấy giao dịch đang chờ để huỷ')
+    }
+
+    // Mark as FAILED
+    await this.prisma.transaction.update({
+      where: { id: pendingTx.id },
+      data: {
+        status: 'FAILED',
+        description: (pendingTx.description || '').replace('Đang chờ thanh toán', 'Đã huỷ'),
+      },
+    })
+
+    return { success: true, message: 'Đã huỷ giao dịch thành công' }
+  }
+
   // Withdraw earned xu (min 200 xu, 15% fee)
   async withdraw(userId: string, body: WithdrawBodyType) {
     const wallet = await this.getWallet(userId)
