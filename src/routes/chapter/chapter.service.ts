@@ -76,7 +76,7 @@ export class ChapterService {
     if (cached) return cached
 
     const chapters = await this.prisma.chapter.findMany({
-      where: { storyId },
+      where: { storyId, isPublished: true },
       orderBy: { chapterNumber: 'asc' },
       select: {
         id: true,
@@ -97,7 +97,7 @@ export class ChapterService {
     return chapters
   }
 
-  async findOne(storyId: string, chapterNumber: number, skipView = false, userId?: string) {
+  async findOne(storyId: string, chapterNumber: number, skipView = false, userId?: string, userRole?: string) {
     const chapter = await this.prisma.chapter.findUnique({
       where: { storyId_chapterNumber: { storyId, chapterNumber } },
       include: {
@@ -106,6 +106,11 @@ export class ChapterService {
       },
     })
     if (!chapter) throw new NotFoundException('Chapter không tồn tại')
+
+    // Visiblility Check: If not published, only author or admin can view
+    if (!chapter.isPublished && chapter.story.authorId !== userId && userRole !== 'ADMIN') {
+      throw new NotFoundException('Chapter không tồn tại')
+    }
 
     // Access Control Logic for Premium Chapters
     let isLocked = false
@@ -118,7 +123,6 @@ export class ChapterService {
         isLocked = false
       } else {
         // Logged-in Reader -> check wallet for purchase
-        // Allow ADMIN to read everything as well if needed, but here we assume only author/buyer
         const hasPurchased = await this.walletService.hasUnlockedChapter(userId, chapter.id)
         if (!hasPurchased) {
           isLocked = true
@@ -151,8 +155,7 @@ export class ChapterService {
       }),
     ])
 
-    const result = { ...chapter, prevChapter, nextChapter, isLocked }
-    return result
+    return { ...chapter, prevChapter, nextChapter, isLocked }
   }
 
   async update(storyId: string, chapterNumber: number, userId: string, userRole: string, body: UpdateChapterBodyType) {
