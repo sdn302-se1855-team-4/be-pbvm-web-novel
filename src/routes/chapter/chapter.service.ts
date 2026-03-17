@@ -107,6 +107,25 @@ export class ChapterService {
     })
     if (!chapter) throw new NotFoundException('Chapter không tồn tại')
 
+    // Access Control Logic for Unapproved Chapters
+    if (!chapter.isPublished) {
+      if (!userId) {
+        throw new ForbiddenException('Chương này chưa được phê duyệt')
+      }
+
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      })
+
+      const isAuthor = chapter.story.authorId === userId
+      const isAdmin = user?.role === 'ADMIN'
+
+      if (!isAuthor && !isAdmin) {
+        throw new ForbiddenException('Chương này chưa được phê duyệt. Chỉ Tác giả hoặc Admin mới có thể xem.')
+      }
+    }
+
     // Access Control Logic for Premium Chapters
     let isLocked = false
     if (chapter.isPremium) {
