@@ -22,7 +22,7 @@ export class RegisterBodyDTO extends createZodDto(RegisterBodySchema) {}
 
 // ==================== Login ====================
 export const LoginBodySchema = z4.object({
-  email: z4.email('Email không hợp lệ'),
+  email: z4.string().min(1, 'Email hoặc username không được để trống'),
   password: z4.string().min(1, 'Mật khẩu không được để trống'),
 })
 

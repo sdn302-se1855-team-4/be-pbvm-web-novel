@@ -68,16 +68,18 @@ export class AuthService {
   }
 
   async login(body: LoginBodyType) {
-    const user = await this.prisma.user.findUnique({
-      where: { email: body.email },
+    const isEmail = body.email.includes('@')
+    const user = await this.prisma.user.findFirst({
+      where: isEmail ? { email: body.email } : { username: body.email },
     })
+
     if (!user || !user.passwordHash) {
-      throw new UnauthorizedException('Email hoặc mật khẩu không đúng')
+      throw new UnauthorizedException('Email/username hoặc mật khẩu không đúng')
     }
 
     const isPasswordValid = await this.hashingService.compare(body.password, user.passwordHash)
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Email hoặc mật khẩu không đúng')
+      throw new UnauthorizedException('Email/username hoặc mật khẩu không đúng')
     }
 
     // Update lastLoginAt

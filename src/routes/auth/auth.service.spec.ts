@@ -92,25 +92,41 @@ describe('AuthService', () => {
     }
 
     it('should throw UnauthorizedException if user not found', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(null)
+      mockPrismaService.user.findFirst.mockResolvedValue(null)
       await expect(service.login(loginDto)).rejects.toThrow(UnauthorizedException)
     })
 
     it('should throw UnauthorizedException if password invalid', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue({ passwordHash: 'hashed_password' })
+      mockPrismaService.user.findFirst.mockResolvedValue({ passwordHash: 'hashed_password' })
       mockHashingService.compare.mockResolvedValue(false)
       await expect(service.login(loginDto)).rejects.toThrow(UnauthorizedException)
     })
 
-    it('should login and return tokens', async () => {
-      const mockUser = { id: 'user_id', email: loginDto.email, passwordHash: 'hashed_password', role: 'USER' }
-      mockPrismaService.user.findUnique.mockResolvedValue(mockUser)
+    it('should login with email and return tokens', async () => {
+      const mockUser = { id: 'user_id', email: loginDto.email, passwordHash: 'hashed_password', role: 'READER' }
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser)
       mockHashingService.compare.mockResolvedValue(true)
       mockPrismaService.user.update.mockResolvedValue(mockUser)
       mockTokenService.signAccessToken.mockResolvedValue('access_token')
-      mockTokenService.signRefreshToken.mockResolvedValue('refresh_token')
+      mockTokenService.signRefreshToken.mockResolvedValue({ token: 'refresh_token', jti: 'jti' })
 
       const result = await service.login(loginDto)
+
+      expect(result.user.id).toBe(mockUser.id)
+      expect(result.accessToken).toBe('access_token')
+      expect(result.refreshToken).toBe('refresh_token')
+    })
+
+    it('should login with username and return tokens', async () => {
+      const loginWithUsernameDto = { email: 'testuser', password: 'password123' }
+      const mockUser = { id: 'user_id', username: 'testuser', passwordHash: 'hashed_password', role: 'READER' }
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser)
+      mockHashingService.compare.mockResolvedValue(true)
+      mockPrismaService.user.update.mockResolvedValue(mockUser)
+      mockTokenService.signAccessToken.mockResolvedValue('access_token')
+      mockTokenService.signRefreshToken.mockResolvedValue({ token: 'refresh_token', jti: 'jti' })
+
+      const result = await service.login(loginWithUsernameDto)
 
       expect(result.user.id).toBe(mockUser.id)
       expect(result.accessToken).toBe('access_token')
