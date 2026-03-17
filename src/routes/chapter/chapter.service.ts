@@ -67,16 +67,43 @@ export class ChapterService {
     )
   }
 
-  async findAllByStory(storyId: string) {
+  async findAllByStory(storyId: string, userId?: string, userRole?: string) {
     const story = await this.prisma.story.findUnique({ where: { id: storyId } })
     if (!story) throw new NotFoundException('Truyện không tồn tại')
 
-    const cacheKey = `chapters:story:${storyId}`
-    const cached = await this.redisService.get(cacheKey)
-    if (cached) return cached
+    const isAuthorOrAdmin = userId && (story.authorId === userId || userRole === 'ADMIN')
 
-    const chapters = await this.prisma.chapter.findMany({
-      where: { storyId, isPublished: true },
+    if (!isAuthorOrAdmin) {
+      // Logic cũ: Chỉ lấy chương đã duyệt + dùng Cache cho độc giả
+      const cacheKey = `chapters:story:${storyId}`
+      const cached = await this.redisService.get(cacheKey)
+      if (cached) return cached
+
+      const chapters = await this.prisma.chapter.findMany({
+        where: { storyId, isPublished: true },
+        orderBy: { chapterNumber: 'asc' },
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          chapterNumber: true,
+          wordCount: true,
+          viewCount: true,
+          isPublished: true,
+          isPremium: true,
+          price: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      })
+
+      await this.redisService.set(cacheKey, chapters, 1800) // 30 min
+      return chapters
+    }
+
+    // Logic mới: Lấy THÔNG TIN TẤT CẢ chương (kể cả chưa duyệt) cho Tác giả/Admin, không dùng Cache
+    const allChapters = await this.prisma.chapter.findMany({
+      where: { storyId },
       orderBy: { chapterNumber: 'asc' },
       select: {
         id: true,
@@ -93,8 +120,7 @@ export class ChapterService {
       },
     })
 
-    await this.redisService.set(cacheKey, chapters, 1800) // 30 min
-    return chapters
+    return allChapters
   }
 
   async findOne(storyId: string, chapterNumber: number, skipView = false, userId?: string, userRole?: string) {
