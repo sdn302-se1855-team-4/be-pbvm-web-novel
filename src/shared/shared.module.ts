@@ -10,6 +10,9 @@ import { AccessAuthGuard } from './guards/access-auth.guard'
 import { JwtModule } from '@nestjs/jwt'
 import { RefreshAuthGuard } from './guards/refresh-auth.guard'
 import { MailService } from './services/mail.service'
+import { BullModule } from '@nestjs/bullmq'
+import { MAIL_QUEUE } from './queues/mail.queue'
+import { MailProcessor } from './processors/mail.processor'
 
 @Global()
 @Module({
@@ -21,6 +24,7 @@ import { MailService } from './services/mail.service'
     FirebaseService,
     CloudinaryService,
     MailService,
+    MailProcessor,
     AccessAuthGuard,
     RefreshAuthGuard,
   ],
@@ -35,6 +39,11 @@ import { MailService } from './services/mail.service'
     AccessAuthGuard,
     RefreshAuthGuard,
   ],
-  imports: [JwtModule.register({})],
+  imports: [
+    JwtModule.register({}),
+    BullModule.registerQueue({
+      name: MAIL_QUEUE,
+    }),
+  ],
 })
 export class SharedModule {}

@@ -1,7 +1,14 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { AuthService } from './auth.service'
-import { LoginBodyDTO, RegisterBodyDTO, GoogleLoginBodyDTO } from './auth.dto/auth.dto'
+import {
+  LoginBodyDTO,
+  RegisterBodyDTO,
+  GoogleLoginBodyDTO,
+  ForgotPasswordBodyDTO,
+  ResetPasswordBodyDTO,
+  ChangePasswordBodyDTO,
+} from './auth.dto/auth.dto'
 import { AccessAuthGuard } from 'src/shared/guards/access-auth.guard'
 import { RefreshAuthGuard } from 'src/shared/guards/refresh-auth.guard'
 import { ActiveUser } from 'src/shared/decorators/active-user.decorator'
@@ -52,5 +59,25 @@ export class AuthController {
   @ResponseMessage('Lấy thông tin profile thành công')
   getProfile(@ActiveUser() user: Express.User) {
     return this.authService.getProfile(user.userId)
+  }
+
+  @Post('forgot-password')
+  @ResponseMessage('Yêu cầu đặt lại mật khẩu đã được gửi')
+  async forgotPassword(@Body() body: ForgotPasswordBodyDTO) {
+    return await this.authService.forgotPassword(body.email)
+  }
+
+  @Post('reset-password')
+  @ResponseMessage('Đặt lại mật khẩu thành công')
+  async resetPassword(@Body() body: ResetPasswordBodyDTO) {
+    return await this.authService.resetPassword(body)
+  }
+
+  @Patch('change-password')
+  @ApiBearerAuth()
+  @UseGuards(AccessAuthGuard)
+  @ResponseMessage('Đổi mật khẩu thành công')
+  async changePassword(@ActiveUser() user: Express.User, @Body() body: ChangePasswordBodyDTO) {
+    return await this.authService.changePassword(user.userId, body)
   }
 }

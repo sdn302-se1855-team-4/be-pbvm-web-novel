@@ -39,6 +39,35 @@ export type GoogleLoginBodyType = z4.infer<typeof GoogleLoginBodySchema>
 
 export class GoogleLoginBodyDTO extends createZodDto(GoogleLoginBodySchema) {}
 
+// ==================== Forgot Password ====================
+export const ForgotPasswordBodySchema = z4.object({
+  email: z4.email('Email không hợp lệ'),
+})
+export type ForgotPasswordBodyType = z4.infer<typeof ForgotPasswordBodySchema>
+export class ForgotPasswordBodyDTO extends createZodDto(ForgotPasswordBodySchema) {}
+
+// ==================== Reset Password ====================
+export const ResetPasswordBodySchema = z4.object({
+  token: z4.string().min(1, 'Token không được để trống'),
+  newPassword: z4.string().min(6, 'Mật khẩu tối thiểu 6 ký tự').max(50, 'Mật khẩu tối đa 50 ký tự'),
+})
+export type ResetPasswordBodyType = z4.infer<typeof ResetPasswordBodySchema>
+export class ResetPasswordBodyDTO extends createZodDto(ResetPasswordBodySchema) {}
+
+// ==================== Change Password ====================
+export const ChangePasswordBodySchema = z4
+  .object({
+    oldPassword: z4.string().min(1, 'Mật khẩu cũ không được để trống'),
+    newPassword: z4.string().min(6, 'Mật khẩu tối thiểu 6 ký tự').max(50, 'Mật khẩu tối đa 50 ký tự'),
+    confirmPassword: z4.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'Mật khẩu xác nhận không khớp',
+    path: ['confirmPassword'],
+  })
+export type ChangePasswordBodyType = z4.infer<typeof ChangePasswordBodySchema>
+export class ChangePasswordBodyDTO extends createZodDto(ChangePasswordBodySchema) {}
+
 // ==================== Response DTOs ====================
 export class AuthTokensResDTO {
   accessToken: string

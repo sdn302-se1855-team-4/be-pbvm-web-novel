@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common'
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common'
 import { TokenService } from 'src/shared/services/token.service'
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { HashingService } from 'src/shared/services/hashing.service'
@@ -11,6 +11,11 @@ import {
   REFRESH_TOKEN_SESSIONS_KEY,
   REFRESH_TOKEN_JTI_KEY,
 } from 'src/shared/constants/redis-keys.constant'
+import { InjectQueue } from '@nestjs/bullmq'
+import { MAIL_JOBS, MAIL_QUEUE } from 'src/shared/queues/mail.queue'
+import { Queue } from 'bullmq'
+import { ChangePasswordBodyType, ResetPasswordBodyType } from './auth.dto/auth.dto'
+import { randomBytes } from 'crypto'
 
 @Injectable()
 export class AuthService {
@@ -21,6 +26,7 @@ export class AuthService {
     private readonly firebaseService: FirebaseService,
     private readonly redisService: RedisService,
     private readonly configService: ConfigService,
+    @InjectQueue(MAIL_QUEUE) private readonly mailQueue: Queue,
   ) {}
 
   async register(body: RegisterBodyType) {
@@ -246,5 +252,68 @@ export class AuthService {
     )
 
     return { accessToken, refreshToken: refreshResult.token }
+  }
+
+  async forgotPassword(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } })
+    if (!user) {
+      // Don't reveal if user exists for security, just return success
+      return { message: 'Nếu email tồn tại trong hệ thống, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu.' }
+    }
+
+    const token = randomBytes(32).toString('hex')
+    const resetKey = `password-reset:${token}`
+
+    // Store token in Redis with 15min expiry
+    await this.redisService.set(resetKey, user.id, 900)
+
+    await this.mailQueue.add(MAIL_JOBS.SEND_FORGOT_PASSWORD, {
+      email: user.email,
+      token,
+      displayName: user.displayName || user.username,
+    })
+
+    return { message: 'Nếu email tồn tại trong hệ thống, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu.' }
+  }
+
+  async resetPassword(body: ResetPasswordBodyType) {
+    const resetKey = `password-reset:${body.token}`
+    const userId = await this.redisService.get<string>(resetKey)
+
+    if (!userId) {
+      throw new BadRequestException('Liên kết đặt lại mật khẩu đã hết hạn hoặc không hợp lệ')
+    }
+
+    const passwordHash = await this.hashingService.hash(body.newPassword)
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    })
+
+    await this.redisService.del(resetKey)
+
+    return { message: 'Đặt lại mật khẩu thành công' }
+  }
+
+  async changePassword(userId: string, body: ChangePasswordBodyType) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (!user || !user.passwordHash) {
+      throw new UnauthorizedException('Người dùng không hợp lệ')
+    }
+
+    const isMatch = await this.hashingService.compare(body.oldPassword, user.passwordHash)
+    if (!isMatch) {
+      throw new BadRequestException('Mật khẩu cũ không chính xác')
+    }
+
+    const passwordHash = await this.hashingService.hash(body.newPassword)
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    })
+
+    return { message: 'Đổi mật khẩu thành công' }
   }
 }

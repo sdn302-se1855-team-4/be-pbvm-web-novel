@@ -3,6 +3,9 @@ import { Role } from '@prisma/client'
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { RedisService } from 'src/shared/services/redis.service'
 import { NotificationService } from '../notification/notification.service'
+import { InjectQueue } from '@nestjs/bullmq'
+import { MAIL_JOBS, MAIL_QUEUE } from 'src/shared/queues/mail.queue'
+import { Queue } from 'bullmq'
 
 @Injectable()
 export class AdminService {
@@ -10,6 +13,7 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
     private readonly notificationService: NotificationService,
+    @InjectQueue(MAIL_QUEUE) private readonly mailQueue: Queue,
   ) {}
 
   async getStats() {
@@ -100,16 +104,28 @@ export class AdminService {
   }
 
   async rejectStory(id: string) {
-    const story = await this.prisma.story.findUnique({ where: { id } })
+    const story = await this.prisma.story.findUnique({
+      where: { id },
+      include: { author: { select: { email: true, displayName: true, username: true } } },
+    })
     if (!story) throw new NotFoundException('Truyện không tồn tại')
 
-    return this.prisma.story.update({
+    const updated = await this.prisma.story.update({
       where: { id },
       data: {
         isPublished: false,
         publishedAt: null,
       },
     })
+
+    // Queue rejection email
+    await this.mailQueue.add(MAIL_JOBS.SEND_STORY_REJECTION, {
+      email: story.author.email,
+      authorName: story.author.displayName || story.author.username,
+      storyTitle: story.title,
+    })
+
+    return updated
   }
 
   async getWithdrawals() {
