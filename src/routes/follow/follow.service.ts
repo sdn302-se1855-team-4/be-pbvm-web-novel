@@ -26,20 +26,7 @@ export class FollowService {
       data: { followerId, followingId },
     })
 
-    // Notify the followed user
-    const followerUser = await this.prisma.user.findUnique({
-      where: { id: followerId },
-      select: { displayName: true, username: true },
-    })
-    const followerName = followerUser?.displayName || followerUser?.username || 'Một người dùng'
-
-    await this.notificationService.createNotification({
-      userId: followingId,
-      type: 'NEW_FOLLOWER',
-      title: 'Người theo dõi mới',
-      message: `${followerName} vừa theo dõi bạn.`,
-      link: `/users/${followerId}`,
-    })
+    await this.notificationService.notifyNewFollower(followerId, followingId)
 
     return { message: 'Follow thành công' }
   }

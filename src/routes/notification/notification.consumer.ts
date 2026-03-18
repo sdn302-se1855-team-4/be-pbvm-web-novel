@@ -21,6 +21,10 @@ export class NotificationConsumer extends WorkerHost {
         return await this.notificationService.processNotifyFollowersNewChapter(job.data)
       case 'notify-author-followers':
         return await this.notificationService.processNotifyAuthorFollowers(job.data)
+      case 'notify-new-follower':
+        return await this.notificationService.processNotifyNewFollower(job.data)
+      case 'notify-donation-received':
+        return await this.notificationService.processNotifyDonationReceived(job.data)
       default:
         this.logger.warn(`Unknown job type: ${job.name}`)
     }

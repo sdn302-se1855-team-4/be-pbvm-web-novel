@@ -214,6 +214,65 @@ export class NotificationService {
     )
   }
 
+  async notifyNewFollower(followerId: string, followingId: string) {
+    await this.notificationQueue.add('notify-new-follower', { followerId, followingId })
+  }
+
+  async processNotifyNewFollower(data: { followerId: string; followingId: string }) {
+    const follower = await this.prisma.user.findUnique({
+      where: { id: data.followerId },
+      select: { displayName: true, username: true },
+    })
+    const followerName = follower?.displayName || follower?.username || 'Một người dùng'
+
+    await this.processCreateNotification({
+      userId: data.followingId,
+      type: 'NEW_FOLLOWER',
+      title: 'Người theo dõi mới',
+      message: `${followerName} vừa theo dõi bạn.`,
+      link: `/users/${data.followerId}`,
+    })
+  }
+
+  async notifyDonationReceived(payload: {
+    toUserId: string
+    amount: number
+    donorId: string
+    message?: string
+    isAnonymous?: boolean
+    storyId?: string
+  }) {
+    await this.notificationQueue.add('notify-donation-received', payload)
+  }
+
+  async processNotifyDonationReceived(data: {
+    toUserId: string
+    amount: number
+    donorId: string
+    message?: string
+    isAnonymous?: boolean
+    storyId?: string
+  }) {
+    let donorName = 'Một độc giả'
+    if (data.isAnonymous) {
+      donorName = 'Một độc giả ẩn danh'
+    } else {
+      const donor = await this.prisma.user.findUnique({
+        where: { id: data.donorId },
+        select: { displayName: true, username: true },
+      })
+      donorName = donor?.displayName || donor?.username || 'Một độc giả'
+    }
+
+    await this.processCreateNotification({
+      userId: data.toUserId,
+      type: 'DONATION_RECEIVED',
+      title: 'Bạn nhận được ủng hộ',
+      message: `${donorName} vừa ủng hộ bạn ${data.amount} xu.${data.message ? ` Lời nhắn: "${data.message}"` : ''}`,
+      link: '/wallet',
+    })
+  }
+
   // Auto-cleanup: delete notifications older than 30 days every day at midnight
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async handleCleanup() {

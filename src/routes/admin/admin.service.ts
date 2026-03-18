@@ -229,6 +229,14 @@ export class AdminService {
       storyTitle: story.title,
     })
 
+    // Send system notification
+    await this.notificationService.createNotification({
+      userId: story.authorId,
+      type: 'ADMIN',
+      title: 'Truyện bị từ chối',
+      message: `Truyện "${story.title}" của bạn đã bị từ chối. Vui lòng kiểm tra email để biết thêm chi tiết.`,
+    })
+
     // Invalidate caches
     await this.redisService.del(`story:${id}`)
     await this.redisService.del(`story:slug:${story.slug}`)
@@ -241,7 +249,17 @@ export class AdminService {
     const story = await this.prisma.story.findUnique({ where: { id } })
     if (!story) throw new NotFoundException('Truyện không tồn tại')
 
+    const { authorId, title } = story
+
     await this.prisma.story.delete({ where: { id } })
+
+    // Notify Author
+    await this.notificationService.createNotification({
+      userId: authorId,
+      type: 'ADMIN',
+      title: 'Truyện đã bị xóa',
+      message: `Truyện "${title}" của bạn đã bị xóa vĩnh viễn bởi Admin.`,
+    })
 
     // Invalidate caches
     await this.redisService.del(`story:${id}`)
@@ -306,7 +324,15 @@ export class AdminService {
   async approveChapter(id: string) {
     const chapter = await this.prisma.chapter.findUnique({
       where: { id },
-      include: { story: { select: { title: true, id: true } } },
+      include: {
+        story: {
+          select: {
+            id: true,
+            title: true,
+            authorId: true,
+          },
+        },
+      },
     })
     if (!chapter) throw new NotFoundException('Chương không tồn tại')
 
@@ -318,6 +344,23 @@ export class AdminService {
       },
     })
 
+    // Notify Author
+    await this.notificationService.createNotification({
+      userId: chapter.story.authorId,
+      type: 'ADMIN',
+      title: 'Chương đã được duyệt',
+      message: `Chương "${chapter.title}" của bộ truyện "${chapter.story.title}" đã được duyệt.`,
+      link: `/stories/${chapter.storyId}/chapters/${chapter.chapterNumber}`,
+    })
+
+    // Notify Followers
+    await this.notificationService.notifyFollowersNewChapter(
+      chapter.story.authorId,
+      chapter.storyId,
+      chapter.story.title,
+      chapter.chapterNumber,
+    )
+
     // Invalidate caches
     await this.redisService.delByPattern(`chapters:story:${chapter.storyId}*`)
     await this.redisService.delByPattern(`admin:chapters:${chapter.storyId}*`)
@@ -327,7 +370,17 @@ export class AdminService {
   }
 
   async rejectChapter(id: string) {
-    const chapter = await this.prisma.chapter.findUnique({ where: { id } })
+    const chapter = await this.prisma.chapter.findUnique({
+      where: { id },
+      include: {
+        story: {
+          select: {
+            title: true,
+            authorId: true,
+          },
+        },
+      },
+    })
     if (!chapter) throw new NotFoundException('Chương không tồn tại')
 
     const updated = await this.prisma.chapter.update({
@@ -335,6 +388,14 @@ export class AdminService {
       data: {
         isPublished: false,
       },
+    })
+
+    // Notify Author
+    await this.notificationService.createNotification({
+      userId: chapter.story.authorId,
+      type: 'ADMIN',
+      title: 'Chương bị từ chối',
+      message: `Chương "${chapter.title}" của bộ truyện "${chapter.story.title}" đã bị từ chối.`,
     })
 
     // Invalidate caches
@@ -346,7 +407,17 @@ export class AdminService {
   }
 
   async deleteChapter(id: string) {
-    const chapter = await this.prisma.chapter.findUnique({ where: { id } })
+    const chapter = await this.prisma.chapter.findUnique({
+      where: { id },
+      include: {
+        story: {
+          select: {
+            title: true,
+            authorId: true,
+          },
+        },
+      },
+    })
     if (!chapter) throw new NotFoundException('Chương không tồn tại')
 
     await this.prisma.$transaction([
@@ -358,6 +429,14 @@ export class AdminService {
         },
       }),
     ])
+
+    // Notify Author
+    await this.notificationService.createNotification({
+      userId: chapter.story.authorId,
+      type: 'ADMIN',
+      title: 'Chương đã bị xóa',
+      message: `Chương "${chapter.title}" của bộ truyện "${chapter.story.title}" đã bị xóa bởi Admin.`,
+    })
 
     // Invalidate caches
     await this.redisService.delByPattern(`chapters:story:${chapter.storyId}*`)

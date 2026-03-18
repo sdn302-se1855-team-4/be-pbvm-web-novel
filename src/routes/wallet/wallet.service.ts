@@ -351,9 +351,8 @@ export class WalletService {
 
   // Donate to an author
   async donate(userId: string, body: DonateBodyType) {
-    if (userId === body.toUserId) {
-      throw new BadRequestException('Không thể tặng xu cho chính mình')
-    }
+    const receiver = await this.prisma.user.findUnique({ where: { id: body.toUserId } })
+    if (!receiver) throw new NotFoundException('Người nhận không tồn tại')
 
     const wallet = await this.getWallet(userId)
     if (wallet.balance < body.amount) {
@@ -417,19 +416,14 @@ export class WalletService {
       },
     })
 
-    // Notify the author about the donation
-    const donor = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { displayName: true, username: true },
-    })
-    const donorName = body.isAnonymous ? 'Một độc giả ẩn danh' : donor?.displayName || donor?.username || 'Một độc giả'
-
-    await this.notificationService.createNotification({
-      userId: body.toUserId,
-      type: 'DONATION_RECEIVED',
-      title: 'Bạn nhận được ủng hộ',
-      message: `${donorName} vừa ủng hộ bạn ${body.amount} xu.${body.message ? ` Lời nhắn: "${body.message}"` : ''}`,
-      link: '/wallet',
+    // Notify the author about the donation via background job
+    await this.notificationService.notifyDonationReceived({
+      toUserId: body.toUserId,
+      amount: body.amount,
+      donorId: userId,
+      message: body.message,
+      isAnonymous: body.isAnonymous,
+      storyId: body.storyId,
     })
 
     return { message: `Ủng hộ ${body.amount} xu thành công`, balance: updatedSender.balance }
