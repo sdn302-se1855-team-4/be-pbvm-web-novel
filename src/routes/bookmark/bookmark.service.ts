@@ -30,7 +30,8 @@ export class BookmarkService {
     return { message: 'Xóa bookmark thành công' }
   }
 
-  async getMyBookmarks(userId: string, page = 1, limit = 20) {
+  async getMyBookmarks(userId: string, query: { page: number; limit: number }) {
+    const { page, limit } = query
     const skip = (page - 1) * limit
     const [data, total] = await Promise.all([
       this.prisma.bookmark.findMany({

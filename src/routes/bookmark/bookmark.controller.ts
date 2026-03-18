@@ -4,6 +4,7 @@ import { AccessAuthGuard } from 'src/shared/guards/access-auth.guard'
 import { ActiveUser } from 'src/shared/decorators/active-user.decorator'
 import { ResponseMessage } from 'src/shared/decorators/response-message.decorator'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
+import { BookmarkQueryDTO } from './bookmark.dto/bookmark.dto'
 
 @ApiTags('bookmarks')
 @ApiBearerAuth()
@@ -26,8 +27,8 @@ export class BookmarkController {
 
   @Get()
   @ResponseMessage('Lấy danh sách bookmark thành công')
-  getMyBookmarks(@ActiveUser() user: Express.User, @Query('page') page?: number, @Query('limit') limit?: number) {
-    return this.bookmarkService.getMyBookmarks(user.userId, page, limit)
+  getMyBookmarks(@ActiveUser() user: Express.User, @Query() query: BookmarkQueryDTO) {
+    return this.bookmarkService.getMyBookmarks(user.userId, query)
   }
 
   @Get('check/:storyId')
