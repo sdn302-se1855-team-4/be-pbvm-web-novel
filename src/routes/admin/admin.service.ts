@@ -763,10 +763,20 @@ export class AdminService {
     const user = await this.prisma.user.findUnique({ where: { id } })
     if (!user) throw new NotFoundException('Người dùng không tồn tại')
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id },
       data: { isBlocked, blockReason: reason },
     })
+
+    if (isBlocked) {
+      await this.mailQueue.add(MAIL_JOBS.SEND_ACCOUNT_BLOCK, {
+        email: user.email,
+        displayName: user.displayName || user.username,
+        reason,
+      })
+    }
+
+    return updated
   }
 
   // ==================== Analytics V2 ====================

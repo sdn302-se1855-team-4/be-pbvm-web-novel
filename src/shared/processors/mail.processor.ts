@@ -12,7 +12,7 @@ export class MailProcessor extends WorkerHost {
     super()
   }
 
-  async process(job: Job<unknown, unknown, string>): Promise<any> {
+  async process(job: Job<unknown, unknown, string>): Promise<unknown> {
     this.logger.log(`Processing job ${job.id} of type ${job.name}`)
 
     switch (job.name) {
@@ -26,6 +26,8 @@ export class MailProcessor extends WorkerHost {
         return this.handleGoogleWelcomeCredentials(
           job.data as { email: string; username: string; password: string; displayName: string },
         )
+      case MAIL_JOBS.SEND_ACCOUNT_BLOCK:
+        return this.handleAccountBlock(job.data as { email: string; displayName: string; reason?: string })
       default:
         this.logger.warn(`Unknown job type: ${job.name}`)
     }
@@ -88,6 +90,23 @@ export class MailProcessor extends WorkerHost {
           </div>
           
           <p>Bạn nên đổi mật khẩu sau khi đăng nhập lần đầu để đảm bảo an toàn cho tài khoản.</p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
+          <p style="color: #888; font-size: 12px;">Chapter One Team - Đưa thế giới truyện đến gần bạn hơn.</p>
+        </div>
+      `,
+    })
+  }
+  private async handleAccountBlock(data: { email: string; displayName: string; reason?: string }) {
+    await this.mailService.sendMail({
+      to: data.email,
+      subject: 'Thông báo khóa tài khoản - Chapter One',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <h2 style="color: #d32f2f; text-align: center;">Thông báo khóa tài khoản</h2>
+          <p>Xin chào <strong>${data.displayName}</strong>,</p>
+          <p>Chúng tôi rất tiếc phải thông báo rằng tài khoản của bạn trên <strong>Chapter One</strong> đã bị khóa tạm thời hoặc vĩnh viễn do vi phạm điều khoản sử dụng của hệ thống.</p>
+          ${data.reason ? `<p><strong>Lý do:</strong> ${data.reason}</p>` : '<p><strong>Lý do:</strong> Vi phạm quy định cộng đồng hoặc nội dung không phù hợp.</p>'}
+          <p>Nếu bạn cho rằng đây là một sự nhầm lẫn, vui lòng liên hệ với bộ phận hỗ trợ của chúng tôi.</p>
           <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
           <p style="color: #888; font-size: 12px;">Chapter One Team - Đưa thế giới truyện đến gần bạn hơn.</p>
         </div>

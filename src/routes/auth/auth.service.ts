@@ -82,6 +82,10 @@ export class AuthService {
       throw new UnauthorizedException('Email/username hoặc mật khẩu không đúng')
     }
 
+    if (user.isBlocked) {
+      throw new UnauthorizedException('Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Admin để biết thêm chi tiết.')
+    }
+
     // Update lastLoginAt
     await this.prisma.user.update({
       where: { id: user.id },
@@ -188,6 +192,10 @@ export class AuthService {
           where: { id: user.id },
           data: { lastLoginAt: new Date() },
         })
+      }
+
+      if (user.isBlocked) {
+        throw new UnauthorizedException('Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Admin để biết thêm chi tiết.')
       }
     } else {
       // 3. Create new user with generated credentials
