@@ -114,15 +114,21 @@ export class AuthService {
       throw new UnauthorizedException('User không tồn tại')
     }
 
-    // Validate old jti exists in Redis (token reuse detection)
+    // Validate jti exists and belongs to this user
     if (oldJti) {
       const jtiKey = REFRESH_TOKEN_JTI_KEY(oldJti)
-      const exists = await this.redisService.exists(jtiKey)
-      if (!exists) {
+      const storedUserId = await this.redisService.get<string>(jtiKey)
+
+      if (!storedUserId) {
         throw new UnauthorizedException('Refresh token đã bị thu hồi hoặc hết hạn')
       }
 
-      // Remove old jti (token rotation: old token is invalidated)
+      if (storedUserId !== userId) {
+        // Potential token theft or logical error
+        throw new UnauthorizedException('Refresh token không hợp lệ cho người dùng này')
+      }
+
+      // Remove old jti (token rotation)
       const sessionsKey = REFRESH_TOKEN_SESSIONS_KEY(userId)
       await this.redisService.removeRefreshTokenSession(sessionsKey, jtiKey, oldJti)
     }
@@ -277,6 +283,7 @@ export class AuthService {
       payload.userId,
       MAX_SESSIONS_PER_USER,
       expiresInSec,
+      Date.now(),
     )
 
     return { accessToken, refreshToken: refreshResult.token }

@@ -86,19 +86,18 @@ export class RedisService implements OnModuleDestroy {
   /**
    * Atomically add a refresh token session for a user.
    * Uses a Lua script to:
-   *   1. Add the new jti to the user's session SET
-   *   2. Set the jti key with userId as value
+   *   1. Add the new jti to the user's session ZSET with timestamp as score
+   *   2. Set the jti key with userId as value (JSON stringified)
    *   3. If sessions exceed maxSessions, remove the oldest jti(s)
    *   4. Set TTL on all keys
    *
-   * This ensures the entire operation is atomic — no race conditions.
-   *
-   * KEYS[1] = sessions SET key (e.g. refresh_token:user:{userId}:sessions)
-   * KEYS[2] = jti key (e.g. refresh_token:jti:{jti})
-   * ARGV[1] = jti
-   * ARGV[2] = userId
-   * ARGV[3] = maxSessions
-   * ARGV[4] = ttl in seconds
+   * @param sessionsKey ZSET key for user sessions
+   * @param jtiKey STRING key for jti mapping
+   * @param jti JWT identifier
+   * @param userId The User ID
+   * @param maxSessions Max sessions allowed
+   * @param ttl TTL in seconds
+   * @param score Timestamp (score) for the ZSET
    */
   async addRefreshTokenSession(
     sessionsKey: string,
@@ -107,36 +106,57 @@ export class RedisService implements OnModuleDestroy {
     userId: string,
     maxSessions: number,
     ttl: number,
+    score: number,
   ): Promise<void> {
     const luaScript = `
-      -- Add the new jti to sessions set
-      redis.call('SADD', KEYS[1], ARGV[1])
-
-      -- Store jti -> userId mapping
-      redis.call('SET', KEYS[2], ARGV[2], 'EX', tonumber(ARGV[4]))
-
-      -- Get all current sessions
-      local sessions = redis.call('SMEMBERS', KEYS[1])
-      local maxSessions = tonumber(ARGV[3])
-
-      -- If over max, remove oldest sessions (FIFO based on set order)
-      if #sessions > maxSessions then
-        local toRemove = #sessions - maxSessions
-        for i = 1, toRemove do
-          local oldJti = sessions[i]
-          redis.call('SREM', KEYS[1], oldJti)
-          redis.call('DEL', 'refresh_token:jti:' .. oldJti)
-        end
+      -- Check if the key exists and if it's a ZSET. If not (e.g., it's the old SET), delete it.
+      local currentType = redis.call('TYPE', KEYS[1])['ok']
+      if currentType ~= 'zset' and currentType ~= 'none' then
+        redis.call('DEL', KEYS[1])
       end
 
-      -- Set TTL on sessions set
+      -- Add the new jti to sessions ZSET
+      redis.call('ZADD', KEYS[1], ARGV[5], ARGV[1])
+
+      -- Store jti -> userId mapping (JSON stringified for service compatibility)
+      redis.call('SET', KEYS[2], ARGV[2], 'EX', tonumber(ARGV[4]))
+
+      -- Get number of sessions
+      local count = redis.call('ZCARD', KEYS[1])
+      local maxSessions = tonumber(ARGV[3])
+
+      -- If over max, remove oldest sessions (lowest scores)
+      if count > maxSessions then
+        local toRemove = count - maxSessions
+        -- Get the JTIs that are about to be removed
+        local oldJtis = redis.call('ZRANGE', KEYS[1], 0, toRemove - 1)
+        for i = 1, #oldJtis do
+          redis.call('DEL', 'refresh_token:jti:' .. oldJtis[i])
+        end
+        -- Remove from ZSET
+        redis.call('ZREMRANGEBYRANK', KEYS[1], 0, toRemove - 1)
+      end
+
+      -- Set TTL on sessions ZSET
       redis.call('EXPIRE', KEYS[1], tonumber(ARGV[4]))
 
       return 1
     `
 
     try {
-      await this.redis.eval(luaScript, 2, sessionsKey, jtiKey, jti, userId, maxSessions.toString(), ttl.toString())
+      // Stringify userId to match RedisService.get expectations
+      const serializedUserId = JSON.stringify(userId)
+      await this.redis.eval(
+        luaScript,
+        2,
+        sessionsKey,
+        jtiKey,
+        jti,
+        serializedUserId,
+        maxSessions.toString(),
+        ttl.toString(),
+        score.toString(),
+      )
     } catch (err) {
       this.logger.error('Redis Lua script error (addRefreshTokenSession)', err)
       throw err
@@ -146,13 +166,21 @@ export class RedisService implements OnModuleDestroy {
   /**
    * Atomically remove a refresh token session (on logout or token rotation).
    *
-   * KEYS[1] = sessions SET key
+   * KEYS[1] = sessions ZSET key
    * KEYS[2] = jti key
    * ARGV[1] = jti
    */
   async removeRefreshTokenSession(sessionsKey: string, jtiKey: string, jti: string): Promise<void> {
     const luaScript = `
-      redis.call('SREM', KEYS[1], ARGV[1])
+      -- Check if the key exists and if it's a ZSET.
+      local currentType = redis.call('TYPE', KEYS[1])['ok']
+      if currentType == 'zset' then
+        redis.call('ZREM', KEYS[1], ARGV[1])
+      elseif currentType ~= 'none' then
+        -- If it's the old SET, we can just delete the whole sessions key to migrate
+        redis.call('DEL', KEYS[1])
+      end
+      
       redis.call('DEL', KEYS[2])
       return 1
     `
