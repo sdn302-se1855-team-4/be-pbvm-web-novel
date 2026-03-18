@@ -37,7 +37,9 @@ export class CommentService {
     return comment
   }
 
-  async findByStory(storyId: string, userId?: string, page = 1, limit = 20) {
+  async findByStory(storyId: string, userId?: string, query?: { page?: number; limit?: number }) {
+    const page = query?.page || 1
+    const limit = query?.limit || 20
     const skip = (page - 1) * limit
     const cacheKey = `comments:story:${storyId}:${userId || 'guest'}:p${page}`
     const cached = await this.redisService.get(cacheKey)

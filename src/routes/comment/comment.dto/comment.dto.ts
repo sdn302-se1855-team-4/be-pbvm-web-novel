@@ -15,3 +15,12 @@ export const UpdateCommentBodySchema = z4.object({
 
 export type UpdateCommentBodyType = z4.infer<typeof UpdateCommentBodySchema>
 export class UpdateCommentBodyDTO extends createZodDto(UpdateCommentBodySchema) {}
+
+// ==================== Query Params ====================
+export const CommentQuerySchema = z4.object({
+  page: z4.coerce.number().int().min(1).default(1),
+  limit: z4.coerce.number().int().min(1).max(50).default(10),
+})
+
+export type CommentQueryType = z4.infer<typeof CommentQuerySchema>
+export class CommentQueryDTO extends createZodDto(CommentQuerySchema) {}

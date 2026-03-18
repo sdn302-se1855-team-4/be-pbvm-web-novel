@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common'
 import { CommentService } from './comment.service'
-import { CreateCommentBodyDTO, UpdateCommentBodyDTO } from './comment.dto/comment.dto'
+import { CreateCommentBodyDTO, UpdateCommentBodyDTO, CommentQueryDTO } from './comment.dto/comment.dto'
 import { AccessAuthGuard } from 'src/shared/guards/access-auth.guard'
 import { OptionalAuthGuard } from 'src/shared/guards/optional-auth.guard'
 import { ActiveUser } from 'src/shared/decorators/active-user.decorator'
@@ -23,13 +23,8 @@ export class CommentController {
   @Get('stories/:storyId/comments')
   @UseGuards(OptionalAuthGuard)
   @ResponseMessage('Lấy danh sách bình luận thành công')
-  findByStory(
-    @Param('storyId') storyId: string,
-    @ActiveUser() user?: Express.User,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-  ) {
-    return this.commentService.findByStory(storyId, user?.userId, page, limit)
+  findByStory(@Param('storyId') storyId: string, @ActiveUser() user?: Express.User, @Query() query?: CommentQueryDTO) {
+    return this.commentService.findByStory(storyId, user?.userId, query)
   }
 
   @Post('comments/:id/like')
