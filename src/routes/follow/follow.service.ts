@@ -1,12 +1,14 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { NotificationService } from '../notification/notification.service'
+import { RedisService } from 'src/shared/services/redis.service'
 
 @Injectable()
 export class FollowService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly redisService: RedisService,
   ) {}
 
   async follow(followerId: string, followingId: string) {
@@ -26,6 +28,14 @@ export class FollowService {
       data: { followerId, followingId },
     })
 
+    // Invalidate caches
+    await Promise.all([
+      this.redisService.del(`profile:me:${followerId}`),
+      this.redisService.del(`profile:public:${followerId}`),
+      this.redisService.del(`profile:me:${followingId}`),
+      this.redisService.del(`profile:public:${followingId}`),
+    ])
+
     await this.notificationService.notifyNewFollower(followerId, followingId)
 
     return { message: 'Follow thành công' }
@@ -40,6 +50,15 @@ export class FollowService {
     await this.prisma.follow.delete({
       where: { followerId_followingId: { followerId, followingId } },
     })
+
+    // Invalidate caches
+    await Promise.all([
+      this.redisService.del(`profile:me:${followerId}`),
+      this.redisService.del(`profile:public:${followerId}`),
+      this.redisService.del(`profile:me:${followingId}`),
+      this.redisService.del(`profile:public:${followingId}`),
+    ])
+
     return { message: 'Unfollow thành công' }
   }
 

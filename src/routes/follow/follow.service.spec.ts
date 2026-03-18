@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { FollowService } from './follow.service'
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { ConflictException, NotFoundException } from '@nestjs/common'
+import { RedisService } from 'src/shared/services/redis.service'
+import { NotificationService } from '../notification/notification.service'
 
 describe('FollowService', () => {
   let service: FollowService
@@ -20,9 +22,22 @@ describe('FollowService', () => {
     },
   }
 
+  const mockRedisService = {
+    del: jest.fn().mockResolvedValue(undefined),
+  }
+
+  const mockNotificationService = {
+    notifyNewFollower: jest.fn().mockResolvedValue(undefined),
+  }
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [FollowService, { provide: PrismaService, useValue: mockPrismaService }],
+      providers: [
+        FollowService,
+        { provide: PrismaService, useValue: mockPrismaService },
+        { provide: RedisService, useValue: mockRedisService },
+        { provide: NotificationService, useValue: mockNotificationService },
+      ],
     }).compile()
 
     service = module.get<FollowService>(FollowService)
