@@ -28,6 +28,8 @@ export class MailProcessor extends WorkerHost {
         )
       case MAIL_JOBS.SEND_ACCOUNT_BLOCK:
         return this.handleAccountBlock(job.data as { email: string; displayName: string; reason?: string })
+      case MAIL_JOBS.SEND_ACCOUNT_UNBLOCK:
+        return this.handleAccountUnblock(job.data as { email: string; displayName: string })
       default:
         this.logger.warn(`Unknown job type: ${job.name}`)
     }
@@ -107,6 +109,23 @@ export class MailProcessor extends WorkerHost {
           <p>Chúng tôi rất tiếc phải thông báo rằng tài khoản của bạn trên <strong>Chapter One</strong> đã bị khóa tạm thời hoặc vĩnh viễn do vi phạm điều khoản sử dụng của hệ thống.</p>
           ${data.reason ? `<p><strong>Lý do:</strong> ${data.reason}</p>` : '<p><strong>Lý do:</strong> Vi phạm quy định cộng đồng hoặc nội dung không phù hợp.</p>'}
           <p>Nếu bạn cho rằng đây là một sự nhầm lẫn, vui lòng liên hệ với bộ phận hỗ trợ của chúng tôi.</p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
+          <p style="color: #888; font-size: 12px;">Chapter One Team - Đưa thế giới truyện đến gần bạn hơn.</p>
+        </div>
+      `,
+    })
+  }
+
+  private async handleAccountUnblock(data: { email: string; displayName: string }) {
+    await this.mailService.sendMail({
+      to: data.email,
+      subject: 'Tài khoản của bạn đã được mở khóa - Chapter One',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <h2 style="color: #2e7d32; text-align: center;">Tài khoản đã được mở khóa</h2>
+          <p>Xin chào <strong>${data.displayName}</strong>,</p>
+          <p>Chúng tôi vui mừng thông báo rằng tài khoản của bạn trên <strong>Chapter One</strong> đã được mở khóa. Bây giờ bạn đã có thể đăng nhập và tiếp tục sử dụng các dịch vụ của chúng tôi.</p>
+          <p>Cảm ơn bạn đã kiên nhẫn và đồng hành cùng Chapter One.</p>
           <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
           <p style="color: #888; font-size: 12px;">Chapter One Team - Đưa thế giới truyện đến gần bạn hơn.</p>
         </div>

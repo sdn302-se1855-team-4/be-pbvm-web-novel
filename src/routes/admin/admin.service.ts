@@ -774,6 +774,11 @@ export class AdminService {
         displayName: user.displayName || user.username,
         reason,
       })
+    } else {
+      await this.mailQueue.add(MAIL_JOBS.SEND_ACCOUNT_UNBLOCK, {
+        email: user.email,
+        displayName: user.displayName || user.username,
+      })
     }
 
     return updated
