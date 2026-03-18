@@ -41,7 +41,9 @@ export class StoryService {
       )
     }
 
-    // Invalidate story list cache
+    // Invalidate caches
+    await this.redisService.del(`profile:me:${authorId}`)
+    await this.redisService.del(`profile:public:${authorId}`)
     await this.redisService.delByPattern('stories:*')
 
     return story
@@ -249,6 +251,8 @@ export class StoryService {
     }
 
     // Invalidate caches
+    await this.redisService.del(`profile:me:${userId}`)
+    await this.redisService.del(`profile:public:${userId}`)
     await this.redisService.del(`story:${id}`)
     await this.redisService.del(`story:slug:${updated.slug}`)
     await this.redisService.delByPattern('stories:*')
@@ -266,6 +270,8 @@ export class StoryService {
     await this.prisma.story.delete({ where: { id } })
 
     // Invalidate caches
+    await this.redisService.del(`profile:me:${userId}`)
+    await this.redisService.del(`profile:public:${userId}`)
     await this.redisService.del(`story:${id}`)
     await this.redisService.del(`story:slug:${story.slug}`)
     await this.redisService.delByPattern('stories:*')
