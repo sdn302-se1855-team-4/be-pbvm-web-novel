@@ -1,5 +1,5 @@
 # 1. Base image for pnpm
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
@@ -25,7 +25,7 @@ RUN pnpm install --prod --frozen-lockfile
 RUN pnpm dlx prisma generate
 
 # 4. Production runner stage
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
