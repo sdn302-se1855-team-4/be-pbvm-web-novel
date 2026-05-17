@@ -5,6 +5,7 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "packageManager": "pnpm@10.9.0",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -107,5 +108,18 @@
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@firebase/util",
+      "@nestjs/core",
+      "@prisma/engines",
+      "@scarf/scarf",
+      "bcrypt",
+      "msgpackr-extract",
+      "prisma",
+      "protobufjs",
+      "unrs-resolver"
+    ]
   }
 }
