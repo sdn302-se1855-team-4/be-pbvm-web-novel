@@ -7,17 +7,17 @@ WORKDIR /app
 
 # 2. Stage for building the application
 FROM base AS builder
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --allow-build=bcrypt,@prisma/engines,prisma,protobufjs,msgpackr-extract,@firebase/util,@nestjs/core,@scarf/scarf
+COPY package.json pnpm-lock.yaml .npmrc ./
+RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm dlx prisma generate
 RUN pnpm run build
 
 # 3. Stage for production dependencies only
 FROM base AS prod-deps
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml .npmrc ./
 COPY prisma ./prisma
-RUN pnpm install --prod --frozen-lockfile --allow-build=bcrypt,@prisma/engines,prisma,protobufjs,msgpackr-extract,@firebase/util,@nestjs/core,@scarf/scarf
+RUN pnpm install --prod --frozen-lockfile
 RUN pnpm dlx prisma generate
 
 # 4. Production runner stage
