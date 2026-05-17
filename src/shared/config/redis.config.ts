@@ -10,10 +10,10 @@ export interface RedisConfig {
 export default registerAs(
   'redis',
   (): RedisConfig => ({
-    host: process.env.UPTASH_REDIS_HOST!,
-    port: parseInt(process.env.UPTASH_REDIS_PORT || '6379', 10),
-    username: process.env.UPTASH_REDIS_USER || 'default',
-    password: process.env.UPTASH_REDIS_PASSWORD!,
-    tls: process.env.UPTASH_REDIS_TLS === 'true',
+    host: process.env.REDIS_HOST!,
+    port: parseInt(process.env.REDIS_PORT || '6379', 10),
+    username: process.env.REDIS_USER || 'default',
+    password: process.env.REDIS_PASSWORD!,
+    tls: process.env.REDIS_TLS === 'true',
   }),
 )
