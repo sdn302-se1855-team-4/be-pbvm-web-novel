@@ -14,11 +14,11 @@ const envSchema = z.object({
   PAYOS_API_KEY: z.string(),
   PAYOS_CHECKSUM_KEY: z.string(),
 
-  UPTASH_REDIS_HOST: z.string(),
-  UPTASH_REDIS_PASSWORD: z.string(),
-  UPTASH_REDIS_PORT: z.string(),
-  UPTASH_REDIS_USER: z.string(),
-  UPTASH_REDIS_TLS: z.string(),
+  REDIS_HOST: z.string(),
+  REDIS_PASSWORD: z.string(),
+  REDIS_PORT: z.string(),
+  REDIS_USER: z.string(),
+  REDIS_TLS: z.string(),
 
   FIREBASE_PROJECT_ID: z.string(),
   FIREBASE_CLIENT_EMAIL: z.string(),
