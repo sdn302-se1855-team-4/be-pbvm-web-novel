@@ -7,11 +7,13 @@ export class PayosService {
   private payos: any
 
   constructor(private readonly configService: ConfigService) {
-    this.payos = new PayOS({
-      clientId: this.configService.get<string>('payos.clientId')!,
-      apiKey: this.configService.get<string>('payos.apiKey')!,
-      checksumKey: this.configService.get<string>('payos.checksumKey')!,
-    })
+    const clientId = this.configService.get<string>('payos.clientId')
+    const apiKey = this.configService.get<string>('payos.apiKey')
+    const checksumKey = this.configService.get<string>('payos.checksumKey')
+
+    if (clientId && apiKey && checksumKey) {
+      this.payos = new PayOS({ clientId, apiKey, checksumKey })
+    }
   }
 
   async createPaymentLink(params: {

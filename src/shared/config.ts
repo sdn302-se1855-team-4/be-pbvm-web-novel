@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 const envSchema = z.object({
-  DATABASE_URL: z.string().url(),
+  DATABASE_URL: z.url(),
 
   ACCESS_TOKEN_SECRET: z.string(),
   ACCESS_TOKEN_EXPIRES_IN: z.string(),
@@ -45,7 +45,7 @@ export function validate(config: Record<string, unknown>) {
 
   if (!result.success) {
     console.error('❌ Invalid environment variables:')
-    console.error(JSON.stringify(result.error.flatten().fieldErrors, null, 2))
+    console.error(JSON.stringify(z.flattenError(result.error).fieldErrors, null, 2))
     throw new Error('Environment variables validation failed')
   }
 

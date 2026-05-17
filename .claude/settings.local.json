@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(docker build *)",
-      "Bash(pnpm install *)"
+      "Bash(pnpm install *)",
+      "Bash(powershell -Command \"Get-ChildItem 'd:\\\\FPTU\\\\Project-SDN\\\\be-PBVM-web-novel\\\\src\\\\routes\\\\wallet' -File\")"
     ]
   }
 }
