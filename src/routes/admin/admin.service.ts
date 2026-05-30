@@ -558,7 +558,8 @@ export class AdminService {
     await this.prisma.transaction.create({
       data: {
         walletId: tx.walletId,
-        type: 'DEPOSIT',
+        userId: tx.wallet.userId,
+        type: 'REFUND',
         amount: xuToRefund,
         balance: updatedWallet.balance,
         description: `Hoàn tiền yêu cầu rút xu thất bại (${xuToRefund} xu)`,

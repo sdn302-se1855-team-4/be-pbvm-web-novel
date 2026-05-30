@@ -25,7 +25,7 @@ export class UploadController {
       },
     },
   })
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   @ResponseMessage('Tải ảnh lên thành công')
   async uploadImage(@UploadedFile() file: Express.Multer.File) {
     if (!file) {

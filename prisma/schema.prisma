@@ -38,6 +38,7 @@ model User {
   reviews           Review[]
   stories           Story[]
   wallet            Wallet?
+  transactions      Transaction[]
   fcmTokens         FcmToken[]
   commentLikes      CommentLike[]
 
@@ -124,6 +125,7 @@ model Chapter {
   author         User             @relation(fields: [authorId], references: [id])
   story          Story            @relation(fields: [storyId], references: [id], onDelete: Cascade)
   readingHistory ReadingHistory[]
+  transactions   Transaction[]
 
   @@unique([storyId, chapterNumber])
   @@index([storyId])
@@ -269,18 +271,29 @@ model Wallet {
 model Transaction {
   id            String            @id @default(cuid())
   walletId      String
+  userId        String
   type          TransactionType
   amount        Int
   balance       Int
   description   String?
+  status        TransactionStatus @default(PENDING)
+  orderCode     Int?
+  donationId    String?
+  chapterId     String?
   paymentId     String?
   paymentMethod String?
   metadata      String?
-  status        TransactionStatus @default(PENDING)
   createdAt     DateTime          @default(now())
   wallet        Wallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  donation      Donation?         @relation(fields: [donationId], references: [id])
+  chapter       Chapter?          @relation(fields: [chapterId], references: [id])
 
   @@index([walletId])
+  @@index([userId])
+  @@index([orderCode])
+  @@index([donationId])
+  @@index([chapterId])
   @@index([createdAt])
   @@index([status])
 }
@@ -294,8 +307,9 @@ model Donation {
   storyId     String?
   isAnonymous Boolean  @default(false)
   createdAt   DateTime @default(now())
-  fromUser    User     @relation("DonationFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
-  toUser      User     @relation("DonationTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  fromUser    User          @relation("DonationFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser      User          @relation("DonationTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
 
   @@index([fromUserId])
   @@index([toUserId])
