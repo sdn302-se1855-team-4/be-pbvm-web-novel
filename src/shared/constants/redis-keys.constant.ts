@@ -19,3 +19,9 @@ export const REFRESH_TOKEN_SESSIONS_KEY = (userId: string) => `refresh_token:use
 
 /** Redis key for a single jti → userId mapping */
 export const REFRESH_TOKEN_JTI_KEY = (jti: string) => `refresh_token:jti:${jti}`
+
+/** Redis key holding the pending registration payload + OTP, keyed by email */
+export const REGISTER_OTP_KEY = (email: string) => `register-otp:${email.toLowerCase()}`
+
+/** TTL (seconds) for a pending registration OTP */
+export const REGISTER_OTP_TTL_SECONDS = 600 // 10 minutes

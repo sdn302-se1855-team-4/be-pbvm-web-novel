@@ -20,6 +20,21 @@ export type RegisterBodyType = z4.infer<typeof RegisterBodySchema>
 
 export class RegisterBodyDTO extends createZodDto(RegisterBodySchema) {}
 
+// ==================== Verify Register OTP ====================
+export const VerifyRegisterOtpSchema = z4.object({
+  email: z4.email('Email không hợp lệ'),
+  otp: z4.string().length(6, 'Mã OTP phải có 6 chữ số'),
+})
+export type VerifyRegisterOtpType = z4.infer<typeof VerifyRegisterOtpSchema>
+export class VerifyRegisterOtpDTO extends createZodDto(VerifyRegisterOtpSchema) {}
+
+// ==================== Resend Register OTP ====================
+export const ResendRegisterOtpSchema = z4.object({
+  email: z4.email('Email không hợp lệ'),
+})
+export type ResendRegisterOtpType = z4.infer<typeof ResendRegisterOtpSchema>
+export class ResendRegisterOtpDTO extends createZodDto(ResendRegisterOtpSchema) {}
+
 // ==================== Login ====================
 export const LoginBodySchema = z4.object({
   email: z4.string().min(1, 'Email hoặc username không được để trống'),

@@ -1,9 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing'
+import { getQueueToken } from '@nestjs/bullmq'
+import { ConfigService } from '@nestjs/config'
 import { AuthService } from './auth.service'
 import { TokenService } from 'src/shared/services/token.service'
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { HashingService } from 'src/shared/services/hashing.service'
-import { ConflictException, UnauthorizedException } from '@nestjs/common'
+import { FirebaseService } from 'src/shared/services/firebase.service'
+import { RedisService } from 'src/shared/services/redis.service'
+import { MAIL_QUEUE } from 'src/shared/queues/mail.queue'
+import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common'
 
 describe('AuthService', () => {
   let service: AuthService
@@ -30,13 +35,40 @@ describe('AuthService', () => {
     signRefreshToken: jest.fn(),
   }
 
+  const mockRedisService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    del: jest.fn(),
+    addRefreshTokenSession: jest.fn(),
+    removeRefreshTokenSession: jest.fn(),
+  }
+
+  const mockFirebaseService = {
+    verifyIdToken: jest.fn(),
+  }
+
+  const mockConfigService = {
+    get: jest.fn().mockReturnValue(86400),
+  }
+
+  const mockMailQueue = {
+    add: jest.fn(),
+  }
+
   beforeEach(async () => {
+    jest.clearAllMocks()
+    mockConfigService.get.mockReturnValue(86400)
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: HashingService, useValue: mockHashingService },
         { provide: TokenService, useValue: mockTokenService },
+        { provide: RedisService, useValue: mockRedisService },
+        { provide: FirebaseService, useValue: mockFirebaseService },
+        { provide: ConfigService, useValue: mockConfigService },
+        { provide: getQueueToken(MAIL_QUEUE), useValue: mockMailQueue },
       ],
     }).compile()
 
@@ -69,16 +101,62 @@ describe('AuthService', () => {
       await expect(service.register(registerDto)).rejects.toThrow(ConflictException)
     })
 
-    it('should register a new user and return tokens', async () => {
+    it('should stash a pending registration, queue an OTP email and NOT create the user', async () => {
       mockPrismaService.user.findFirst.mockResolvedValue(null)
       mockHashingService.hash.mockResolvedValue('hashed_password')
-      const mockUser = { id: 'user_id', ...registerDto, role: 'USER' }
-      mockPrismaService.user.create.mockResolvedValue(mockUser)
-      mockTokenService.signAccessToken.mockResolvedValue('access_token')
-      mockTokenService.signRefreshToken.mockResolvedValue('refresh_token')
 
       const result = await service.register(registerDto)
 
+      expect(prisma.user.create).not.toHaveBeenCalled()
+      expect(mockRedisService.set).toHaveBeenCalledWith(
+        `register-otp:${registerDto.email}`,
+        expect.objectContaining({ email: registerDto.email, passwordHash: 'hashed_password', otp: expect.any(String) }),
+        expect.any(Number),
+      )
+      expect(mockMailQueue.add).toHaveBeenCalledWith(
+        'send_register_otp',
+        expect.objectContaining({ email: registerDto.email, otp: expect.any(String) }),
+      )
+      expect(result.email).toBe(registerDto.email)
+    })
+  })
+
+  describe('verifyRegister', () => {
+    const pending = {
+      email: 'test@example.com',
+      username: 'testuser',
+      passwordHash: 'hashed_password',
+      displayName: 'Test User',
+      role: 'READER',
+      otp: '123456',
+    }
+
+    it('should throw BadRequestException if no pending registration / OTP expired', async () => {
+      mockRedisService.get.mockResolvedValue(null)
+      await expect(service.verifyRegister({ email: pending.email, otp: '123456' })).rejects.toThrow(BadRequestException)
+    })
+
+    it('should throw BadRequestException if OTP is incorrect', async () => {
+      mockRedisService.get.mockResolvedValue(pending)
+      await expect(service.verifyRegister({ email: pending.email, otp: '000000' })).rejects.toThrow(BadRequestException)
+    })
+
+    it('should create a verified user and return tokens when OTP matches', async () => {
+      mockRedisService.get.mockResolvedValue(pending)
+      mockPrismaService.user.findFirst.mockResolvedValue(null)
+      const mockUser = { id: 'user_id', ...pending }
+      mockPrismaService.user.create.mockResolvedValue(mockUser)
+      mockTokenService.signAccessToken.mockResolvedValue('access_token')
+      mockTokenService.signRefreshToken.mockResolvedValue({ token: 'refresh_token', jti: 'jti_1' })
+
+      const result = await service.verifyRegister({ email: pending.email, otp: '123456' })
+
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ email: pending.email, emailVerified: expect.any(Date) }),
+        }),
+      )
+      expect(mockRedisService.del).toHaveBeenCalledWith(`register-otp:${pending.email}`)
       expect(result.user.id).toBe(mockUser.id)
       expect(result.accessToken).toBe('access_token')
       expect(result.refreshToken).toBe('refresh_token')
@@ -143,7 +221,7 @@ describe('AuthService', () => {
     it('should return new tokens', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue({ id: 'user_id', role: 'USER' })
       mockTokenService.signAccessToken.mockResolvedValue('new_access_token')
-      mockTokenService.signRefreshToken.mockResolvedValue('new_refresh_token')
+      mockTokenService.signRefreshToken.mockResolvedValue({ token: 'new_refresh_token', jti: 'jti_2' })
 
       const result = await service.refreshToken('user_id')
 

@@ -47,10 +47,10 @@ describe('AuthController', () => {
 
   describe('refreshToken', () => {
     it('should call authService.refreshToken', async () => {
-      const user = { userId: 'user_id' } as any
+      const user = { userId: 'user_id', jti: 'jti_1' } as any
       mockAuthService.refreshToken.mockResolvedValue({ accessToken: '', refreshToken: '' })
       await controller.refreshToken(user)
-      expect(service.refreshToken).toHaveBeenCalledWith(user.userId)
+      expect(service.refreshToken).toHaveBeenCalledWith(user.userId, user.jti)
     })
   })
 

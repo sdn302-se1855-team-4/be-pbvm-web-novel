@@ -16,6 +16,8 @@ export class MailProcessor extends WorkerHost {
     this.logger.log(`Processing job ${job.id} of type ${job.name}`)
 
     switch (job.name) {
+      case MAIL_JOBS.SEND_REGISTER_OTP:
+        return this.handleRegisterOtp(job.data as { email: string; otp: string; displayName: string })
       case MAIL_JOBS.SEND_FORGOT_PASSWORD:
         return this.handleForgotPassword(job.data as { email: string; otp: string; displayName: string })
       case MAIL_JOBS.SEND_STORY_REJECTION:
@@ -33,6 +35,26 @@ export class MailProcessor extends WorkerHost {
       default:
         this.logger.warn(`Unknown job type: ${job.name}`)
     }
+  }
+
+  private async handleRegisterOtp(data: { email: string; otp: string; displayName: string }) {
+    await this.mailService.sendMail({
+      to: data.email,
+      subject: 'Mã xác thực đăng ký tài khoản - Chapter One',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <h2 style="color: #333; text-align: center;">Xác thực địa chỉ email</h2>
+          <p>Xin chào <strong>${data.displayName}</strong>,</p>
+          <p>Cảm ơn bạn đã đăng ký tài khoản tại <strong>Chapter One</strong>. Vui lòng sử dụng mã OTP dưới đây để hoàn tất việc xác thực email và kích hoạt tài khoản của bạn:</p>
+          <div style="background-color: #f4f4f4; padding: 15px; text-align: center; border-radius: 5px; margin: 20px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #2e7d32;">${data.otp}</span>
+          </div>
+          <p style="color: #555;">Mã có hiệu lực trong vòng <strong>10 phút</strong>. Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email.</p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
+          <p style="color: #888; font-size: 12px;">Đây là email tự động, vui lòng không phản hồi.</p>
+        </div>
+      `,
+    })
   }
 
   private async handleForgotPassword(data: { email: string; otp: string; displayName: string }) {

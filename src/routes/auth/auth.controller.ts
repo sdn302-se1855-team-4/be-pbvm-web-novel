@@ -4,6 +4,8 @@ import { AuthService } from './auth.service'
 import {
   LoginBodyDTO,
   RegisterBodyDTO,
+  VerifyRegisterOtpDTO,
+  ResendRegisterOtpDTO,
   GoogleLoginBodyDTO,
   ForgotPasswordBodyDTO,
   ResetPasswordBodyDTO,
@@ -20,9 +22,21 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  @ResponseMessage('Đăng ký thành công')
+  @ResponseMessage('Mã OTP đã được gửi đến email của bạn')
   register(@Body() body: RegisterBodyDTO) {
     return this.authService.register(body)
+  }
+
+  @Post('register/verify')
+  @ResponseMessage('Đăng ký thành công')
+  verifyRegister(@Body() body: VerifyRegisterOtpDTO) {
+    return this.authService.verifyRegister(body)
+  }
+
+  @Post('register/resend-otp')
+  @ResponseMessage('Mã OTP mới đã được gửi đến email của bạn')
+  resendRegisterOtp(@Body() body: ResendRegisterOtpDTO) {
+    return this.authService.resendRegisterOtp(body.email)
   }
 
   @Post('login')

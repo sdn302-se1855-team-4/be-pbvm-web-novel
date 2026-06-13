@@ -10,11 +10,27 @@ import {
   MAX_SESSIONS_PER_USER,
   REFRESH_TOKEN_SESSIONS_KEY,
   REFRESH_TOKEN_JTI_KEY,
+  REGISTER_OTP_KEY,
+  REGISTER_OTP_TTL_SECONDS,
 } from 'src/shared/constants/redis-keys.constant'
 import { InjectQueue } from '@nestjs/bullmq'
 import { MAIL_JOBS, MAIL_QUEUE } from 'src/shared/queues/mail.queue'
 import { Queue } from 'bullmq'
-import { ChangePasswordBodyType, ResetPasswordBodyType } from './auth.dto/auth.dto'
+import {
+  ChangePasswordBodyType,
+  ResetPasswordBodyType,
+  VerifyRegisterOtpType,
+} from './auth.dto/auth.dto'
+
+/** Shape of the pending registration payload stored in Redis until OTP is verified. */
+interface PendingRegistration {
+  email: string
+  username: string
+  passwordHash: string
+  displayName: string
+  role: 'READER' | 'WRITER'
+  otp: string
+}
 
 @Injectable()
 export class AuthService {
@@ -28,31 +44,70 @@ export class AuthService {
     @InjectQueue(MAIL_QUEUE) private readonly mailQueue: Queue,
   ) {}
 
+  /**
+   * Step 1 of registration: validate the data, stash a pending registration in
+   * Redis and email a 6-digit OTP. The account is NOT created until the OTP is
+   * verified via {@link verifyRegister}.
+   */
   async register(body: RegisterBodyType) {
-    // Check email/username uniqueness
-    const existingUser = await this.prisma.user.findFirst({
-      where: {
-        OR: [{ email: body.email }, { username: body.username }],
-      },
-    })
-    if (existingUser) {
-      if (existingUser.email === body.email) {
-        throw new ConflictException('Email đã được sử dụng')
-      }
-      throw new ConflictException('Username đã được sử dụng')
-    }
+    await this.ensureEmailAndUsernameAvailable(body.email, body.username)
 
     const passwordHash = await this.hashingService.hash(body.password)
+    const otp = this.generateOtp()
+
+    const pending: PendingRegistration = {
+      email: body.email,
+      username: body.username,
+      passwordHash,
+      displayName: body.displayName || body.username,
+      role: body.role || 'READER',
+      otp,
+    }
+
+    await this.redisService.set(REGISTER_OTP_KEY(body.email), pending, REGISTER_OTP_TTL_SECONDS)
+
+    await this.mailQueue.add(MAIL_JOBS.SEND_REGISTER_OTP, {
+      email: body.email,
+      otp,
+      displayName: pending.displayName,
+    })
+
+    return {
+      email: body.email,
+      message: 'Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư để hoàn tất đăng ký.',
+    }
+  }
+
+  /**
+   * Step 2 of registration: verify the OTP, create the account (email already
+   * verified) and return auth tokens.
+   */
+  async verifyRegister(body: VerifyRegisterOtpType) {
+    const key = REGISTER_OTP_KEY(body.email)
+    const pending = await this.redisService.get<PendingRegistration>(key)
+
+    if (!pending) {
+      throw new BadRequestException('Mã OTP đã hết hạn. Vui lòng đăng ký lại.')
+    }
+    if (pending.otp !== body.otp) {
+      throw new BadRequestException('Mã OTP không chính xác')
+    }
+
+    // Guard against a duplicate registered between request and verification.
+    await this.ensureEmailAndUsernameAvailable(pending.email, pending.username)
 
     const user = await this.prisma.user.create({
       data: {
-        email: body.email,
-        username: body.username,
-        passwordHash,
-        displayName: body.displayName || body.username,
-        role: body.role || 'READER',
+        email: pending.email,
+        username: pending.username,
+        passwordHash: pending.passwordHash,
+        displayName: pending.displayName,
+        role: pending.role,
+        emailVerified: new Date(),
       },
     })
+
+    await this.redisService.del(key)
 
     const tokens = await this.generateTokens({ userId: user.id, role: user.role })
     return {
@@ -65,6 +120,48 @@ export class AuthService {
       },
       ...tokens,
     }
+  }
+
+  /**
+   * Re-issue an OTP for a pending registration. Requires a still-valid pending
+   * record (i.e. the user has not let the original registration expire).
+   */
+  async resendRegisterOtp(email: string) {
+    const key = REGISTER_OTP_KEY(email)
+    const pending = await this.redisService.get<PendingRegistration>(key)
+
+    if (!pending) {
+      throw new BadRequestException('Phiên đăng ký đã hết hạn. Vui lòng đăng ký lại.')
+    }
+
+    const otp = this.generateOtp()
+    await this.redisService.set(key, { ...pending, otp }, REGISTER_OTP_TTL_SECONDS)
+
+    await this.mailQueue.add(MAIL_JOBS.SEND_REGISTER_OTP, {
+      email: pending.email,
+      otp,
+      displayName: pending.displayName,
+    })
+
+    return { email, message: 'Mã OTP mới đã được gửi đến email của bạn.' }
+  }
+
+  private async ensureEmailAndUsernameAvailable(email: string, username: string) {
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ email }, { username }],
+      },
+    })
+    if (existingUser) {
+      if (existingUser.email === email) {
+        throw new ConflictException('Email đã được sử dụng')
+      }
+      throw new ConflictException('Username đã được sử dụng')
+    }
+  }
+
+  private generateOtp(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString()
   }
 
   async login(body: LoginBodyType) {
