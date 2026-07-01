@@ -2,12 +2,14 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { PrismaService } from 'src/shared/services/prisma.service'
 import { CreateCommentBodyType, UpdateCommentBodyType } from './comment.dto/comment.dto'
 import { RedisService } from 'src/shared/services/redis.service'
+import { CommentGateway } from './comment.gateway'
 
 @Injectable()
 export class CommentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
+    private readonly commentGateway: CommentGateway,
   ) {}
 
   async create(storyId: string, userId: string, body: CreateCommentBodyType) {
@@ -28,11 +30,17 @@ export class CommentService {
       },
       include: {
         user: { select: { id: true, username: true, displayName: true, avatar: true } },
+        _count: { select: { replies: true, likes: true } },
       },
     })
 
     // Invalidate cache
     await this.redisService.delByPattern(`comments:story:${storyId}*`)
+    this.commentGateway.emitCommentCreated(storyId, {
+      ...comment,
+      isLiked: false,
+      likesCount: comment._count.likes,
+    })
 
     return comment
   }
@@ -97,6 +105,8 @@ export class CommentService {
         data: { commentId, userId },
       })
       await this.redisService.delByPattern(`comments:story:${comment.storyId}*`)
+      const likesCount = await this.prisma.commentLike.count({ where: { commentId } })
+      this.commentGateway.emitCommentLiked(comment.storyId, commentId, likesCount, userId, true)
       return result
     } catch {
       // If unique constraint fails, user already liked the comment
@@ -116,6 +126,8 @@ export class CommentService {
     const comment = await this.prisma.comment.findUnique({ where: { id: commentId } })
     if (comment) {
       await this.redisService.delByPattern(`comments:story:${comment.storyId}*`)
+      const likesCount = await this.prisma.commentLike.count({ where: { commentId } })
+      this.commentGateway.emitCommentLiked(comment.storyId, commentId, likesCount, userId, false)
     }
     return { message: 'Đã bỏ like comment' }
   }
@@ -132,11 +144,17 @@ export class CommentService {
       data: { content: body.content },
       include: {
         user: { select: { id: true, username: true, displayName: true, avatar: true } },
+        _count: { select: { replies: true, likes: true } },
       },
     })
 
     // Invalidate cache
     await this.redisService.delByPattern(`comments:story:${comment.storyId}*`)
+    this.commentGateway.emitCommentUpdated(comment.storyId, {
+      ...updated,
+      isLiked: false,
+      likesCount: updated._count.likes,
+    })
 
     return updated
   }
@@ -152,6 +170,7 @@ export class CommentService {
 
     // Invalidate cache
     await this.redisService.delByPattern(`comments:story:${comment.storyId}*`)
+    this.commentGateway.emitCommentDeleted(comment.storyId, commentId)
 
     return { message: 'Xóa comment thành công' }
   }

@@ -38,8 +38,10 @@ describe('CommentController', () => {
 
   describe('findByStory', () => {
     it('should call commentService.findByStory', async () => {
-      await controller.findByStory('s', 1, 20)
-      expect(service.findByStory).toHaveBeenCalledWith('s', 1, 20)
+      const user = { userId: 'u' } as any
+      const query = { page: 1, limit: 20 } as any
+      await controller.findByStory('s', user, query)
+      expect(service.findByStory).toHaveBeenCalledWith('s', user.userId, query)
     })
   })
 
